@@ -34,6 +34,12 @@ La estructura del proyecto sigue un patrón modular nativo de GCP:
 │   │   └── security.py     # Filtros de anonimización (RUT/Salarios)
 │   └── main.py             # Punto de entrada FastAPI
 ├── docs/                   # Documentación de Metodología (HUs)
+│   ├── user-stories/       # Historias de Usuario (HU-00X)
+│   │   ├── HU-00X/
+│   │   │   ├── conceptual.md   # Visión de negocio y objetivos
+│   │   │   ├── functional.md   # Criterios de aceptación y flujos
+│   │   │   └── technical.md    # Diseño técnico y queries
+├── logs/                   # Registro de cambios y resultados de pruebas
 ├── tests/                  # Pruebas de integridad de lógica
 ├── .env                    # Configuración de secretos local
 ├── requirements.txt        # Dependencias de Python
@@ -68,3 +74,28 @@ FIRESTORE_COLLECTION=agent_sessions
 LOG_LEVEL=INFO
 ENV=development
 ```
+
+---
+
+## 6. Políticas de Calidad y Pruebas
+*   **Pruebas Obligatorias:** No se realizará ningún `git push` sin antes haber ejecutado y validado satisfactoriamente los casos de prueba en la carpeta `tests/`.
+*   **Registro de Pruebas (Logs):** Cada conjunto de cambios debe venir acompañado de un archivo de log en la carpeta `logs/`, detallando los cambios realizados y el resultado "OK" de las pruebas.
+*   **Simulación de Negocio:** Las pruebas deben incluir mocks de BigQuery y simulaciones de consultas reales del endpoint `/chat`.
+
+---
+
+## 7. Metodología de Documentación (User Stories)
+Cada nueva funcionalidad debe seguir este flujo de documentación previo a la implementación:
+1.  **Directorio:** `/docs/user-stories/HU-XXX-Nombre/`
+2.  **conceptual.md:** Describe el "Qué" y el "Para qué" desde la perspectiva de negocio.
+3.  **functional.md:** Detalla los criterios de aceptación, entradas/salidas del usuario y lógica de filtros.
+4.  **technical.md:** Define el diseño técnico, la estrategia de agentes/tools a usar y las queries SQL específicas.
+
+---
+
+## 8. Estrategia de Orquestación
+*   **Patrón Triage (Router):** Se utiliza un agente `router` para clasificar la intención del usuario.
+*   **Especialización:** 
+    *   `hr_agent`: Orquestación de herramientas de BigQuery para métricas numéricas.
+    *   `docs_agent`: RAG sobre políticas y reglamentos en Cloud Storage.
+*   **Tool-use vs Sub-agentes:** Se prefieren herramientas atómicas dentro de un agente especialista. Solo se crearán sub-agentes si la lógica requiere un cambio drástico de prompt o permisos (ej: acceso a datos sensibles vs públicos).

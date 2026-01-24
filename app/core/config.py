@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     
     # App
     LOG_LEVEL: str = "INFO"
+    SECRET_KEY: str = "p014654"
+    
+    @property
+    def APP_ENV(self):
+        return self.ENV
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

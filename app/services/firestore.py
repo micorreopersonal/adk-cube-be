@@ -14,7 +14,10 @@ class FirestoreService:
     def client(self) -> firestore.AsyncClient:
         if self._client is None:
             settings = get_settings()
-            self._client = firestore.AsyncClient(project=settings.PROJECT_ID)
+            self._client = firestore.AsyncClient(
+                project=settings.PROJECT_ID,
+                database="adk-pa-firestore-db" # Base de datos específica del usuario
+            )
         return self._client
 
     async def save_session(self, session_id: str, data: dict):

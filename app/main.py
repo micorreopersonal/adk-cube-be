@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+
 from app.core.config import get_settings
-from app.core.models import ChatRequest, ChatResponse
+from app.schemas.chat import ChatRequest, ChatResponse, Token, TokenData
+from app.core.security import create_access_token, get_current_user
 from app.agents.router import get_router
 from app.services.bigquery import get_bq_service
 from app.services.storage import get_storage_service
@@ -17,7 +20,7 @@ app = FastAPI(
 )
 
 # Configuración de CORS
-origins = ["*"] if settings.ENV == "development" else ["https://tu-frontend-prod.com"]
+origins = ["*"] if settings.ENV in ["development", "test"] else ["https://tu-frontend-prod.com"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,19 +39,37 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "env": settings.APP_ENV}
+
+@app.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Validación simple para desarrollo: user=admin, password=SECRET_KEY
+    # En producción esto debe ir contra una DB de usuarios
+    if form_data.username != "admin" or form_data.password != settings.SECRET_KEY:
+         raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales incorrectas",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token = create_access_token(data={"sub": form_data.username})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, current_user: TokenData = Depends(get_current_user)):
     """
     Endpoint principal para interactuar con el ecosistema de agentes.
+    Requiere autenticación.
     """
-    response_text = await router.route(request.message)
+    # Priorizar el perfil del token (seguro) sobre el del request (si existiera)
+    user_profile = current_user.profile or request.context_profile or "EJECUTIVO"
+    response_text = await router.route(request.message, session_id=request.session_id, profile=user_profile)
     
+    # router.route devuelve texto, construimos la respuesta completa
     return ChatResponse(
         response=response_text,
-        agent_name=router.name,
-        metadata={"session_id": request.session_id}
+        session_id=request.session_id,
+        metadata={"agent_name": router.name}
     )
 
 # --- Endpoints de Prueba de Infraestructura (Mock) ---

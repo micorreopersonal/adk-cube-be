@@ -10,3 +10,12 @@ pandas
 openpyxl
 python-dotenv
 python-multipart
+PyJWT
+cryptography
+passlib[bcrypt]
+
+# Testing
+pytest
+pytest-mock
+pytest-asyncio
+requests
