@@ -1,6 +1,6 @@
 from typing import List, Callable
 from app.core.constants import ProfileEnum
-from app.tools.bq_queries.hr_metrics import (
+from app.ai.tools.bq_queries.hr_metrics import (
     get_monthly_attrition, 
     get_talent_alerts
 )

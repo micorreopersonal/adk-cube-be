@@ -2,7 +2,7 @@ from google.adk import Runner
 import os
 # from google.adk.sessions.in_memory_session_service import InMemorySessionService (Removed)
 from google.genai import types, Client
-from app.agents.hr_agent import get_hr_agent
+from app.ai.agents.hr_agent import get_hr_agent
 from app.core.config import get_settings
 
 from app.services.adk_firestore_connector import FirestoreADKSessionService

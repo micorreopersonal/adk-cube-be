@@ -30,9 +30,30 @@ class FirestoreADKSessionService(BaseSessionService):
             app_name=data.get("app_name", app_name),
             user_id=data.get("user_id", user_id),
             id=session_id, # Pydantic field is 'id'
-            events=data.get("history", []), # Pydantic field is 'events' (mapped from legacy 'history' in DB)
+            events=self._map_history_to_events(data.get("history", [])), 
             state=data.get("state", {})
         )
+
+    def _map_history_to_events(self, history: list) -> list:
+        """Adapta eventos legados al esquema de ADK (author/content)."""
+        adapted = []
+        for event in history:
+            # Crear copia para no mutar original
+            e = event.copy() if isinstance(event, dict) else event
+            if isinstance(e, dict):
+                # Map role -> author
+                if "role" in e and "author" not in e:
+                    e["author"] = e.pop("role")
+                # Map text -> content (si es texto simple)
+                # ADK Event content puede ser complejo (parts), pero si es dict simple asumimos adaptación básica
+                # Si 'text' existe y 'content' no
+                if "text" in e and "content" not in e:
+                    # ADK/GenAI Content suele requerir estructura 'parts' o similar si es 'Content' type
+                    # Probamos envolviendo en dict simple, o si el modelo acepta texto pero falla por otra razon.
+                    # Dado el error 'Input should be a valid dictionary', content debe ser dict.
+                    e["content"] = {"parts": [{"text": e.pop("text")}]} 
+            adapted.append(e)
+        return adapted
 
     async def create_session(
         self,

@@ -1,11 +1,11 @@
 import pytest
-from app.tools.bq_queries.hr_metrics import get_monthly_attrition, get_talent_alerts
+from app.ai.tools.bq_queries.hr_metrics import get_monthly_attrition, get_talent_alerts
 import json
 
 # Mock del servicio de BigQuery para que no intente conectar a GCP
 @pytest.fixture
 def mock_bq_service(mocker):
-    mock = mocker.patch("app.tools.bq_queries.hr_metrics.bq_service")
+    mock = mocker.patch("app.ai.tools.bq_queries.hr_metrics.bq_service")
     # Configurar el mock para devolver un objeto dummy
     mock.execute_query.return_value = [] 
     return mock

@@ -1,5 +1,5 @@
 from app.services.bigquery import get_bq_service
-from app.tools.bq_queries.attrition_queries import get_monthly_attrition_query, get_talent_attrition_query
+from app.ai.tools.bq_queries.attrition_queries import get_monthly_attrition_query, get_talent_attrition_query
 
 bq_service = get_bq_service()
 
