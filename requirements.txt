@@ -19,3 +19,6 @@ pytest
 pytest-mock
 pytest-asyncio
 requests
+
+# BigQuery
+db-dtypes

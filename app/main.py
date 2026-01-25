@@ -20,7 +20,8 @@ app = FastAPI(
 )
 
 # Configuración de CORS
-origins = ["*"] if settings.ENV in ["development", "test"] else ["https://tu-frontend-prod.com"]
+# TODO: Restringir orígenes en producción real cuando tengamos frontend definitivo
+origins = ["*"] #if settings.ENV in ["development", "test"] else ["https://tu-frontend-prod.com"]
 
 app.add_middleware(
     CORSMiddleware,
