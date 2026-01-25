@@ -1,5 +1,4 @@
 from google.adk import Agent
-from app.tools.bq_queries.hr_metrics import get_monthly_attrition, get_talent_alerts
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -32,18 +31,13 @@ Cuando se te solicite un análisis o boletín mensual, genera un reporte en Mark
 - Conclusión Estratégica y Recomendaciones.
 """
 
+from app.core.tools_rbac import get_allowed_tools
+
 def get_hr_agent(profile: str = "EJECUTIVO"):
     """
     Inicializa el Agente de HR con herramientas filtradas por perfil (RBAC).
     """
-    # Mapeo de herramientas por perfil
-    tool_map = {
-        "ADMIN": [get_monthly_attrition, get_talent_alerts],
-        "ANALISTA": [get_monthly_attrition, get_talent_alerts],
-        "EJECUTIVO": [get_monthly_attrition], # Ejecutivo solo ve métricas agregadas
-    }
-
-    allowed_tools = tool_map.get(profile, [get_monthly_attrition])
+    allowed_tools = get_allowed_tools(profile)
 
     agent = Agent(
         name="hr_agent",

@@ -50,5 +50,12 @@ Este documento recopila los desafíos técnicos enfrentados, los errores crític
     2.  Cuenta de servicio con rol **`roles/datastore.user`**.
     3.  Nombre de DB correcto en configuración (ej. `adk-pa-firestore-db` vs `(default)`).
 
+### 6. Integración y Contratos de Datos (Pydantic vs DB)
+*   **Problema:** Error 500 en runtime (`ValidationError`) difícil de depurar porque el esquema de Firestore (`session_id`, `history`) no coincidía con el modelo estricto de ADK (`id`, `events`).
+*   **Aprendizaje:**
+    1.  **No asumir esquemas:** Las librerías de terceros (como Google ADK) a menudo tienen validaciones estrictas (extra='forbid').
+    2.  **Mapeo Explícito:** Siempre usar adaptadores que transformen nombres de campos al cruzar fronteras (DB -> Aplicación).
+    3.  **Logs de Pydantic:** Los errores de validación pueden ser silenciosos o genéricos ("Internal Server Error") si no se capturan explícitamente.
+
 ---
 **Autores:** Equipo de Desarrollo ADK & Antigravity (IA)

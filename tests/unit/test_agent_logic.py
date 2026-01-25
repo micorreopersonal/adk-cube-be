@@ -16,7 +16,7 @@ def test_agent_tools_admin():
     """
     Validar que el perfil ADMIN recibe todas las herramientas.
     """
-    profile = ProfileEnum.ADMIN
+    profile = ProfileEnum.ADMIN.value
     agent_mock = get_hr_agent(profile)
     
     # Inspeccionar con qué argumentos se llamó al constructor de Agent
@@ -39,7 +39,7 @@ def test_agent_tools_executive():
     """
     Validar que el perfil EJECUTIVO solo recibe monthly_attrition.
     """
-    profile = ProfileEnum.EJECUTIVO
+    profile = ProfileEnum.EJECUTIVO.value
     get_hr_agent(profile)
     
     _, kwargs = sys.modules["google.adk"].Agent.call_args

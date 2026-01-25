@@ -41,18 +41,27 @@ async def root():
 async def health_check():
     return {"status": "ok", "env": settings.APP_ENV}
 
+from app.core.mock_users import get_user
+
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Validación simple para desarrollo: user=admin, password=SECRET_KEY
-    # En producción esto debe ir contra una DB de usuarios
-    if form_data.username != "admin" or form_data.password != settings.SECRET_KEY:
+    # Validación contra "Base de Datos" de Mock Users
+    user_db = get_user(form_data.username)
+    
+    if not user_db or user_db["password"] != form_data.password:
          raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token = create_access_token(data={"sub": form_data.username})
+    # Crear token incluyendo el perfil del usuario validado
+    access_token = create_access_token(
+        data={
+            "sub": form_data.username,
+            "profile": user_db["profile"]
+        }
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/chat", response_model=ChatResponse)

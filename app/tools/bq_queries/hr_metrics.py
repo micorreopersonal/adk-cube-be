@@ -80,7 +80,7 @@ def get_talent_alerts(month: int, year: int):
     
     query = f"""
     SELECT 
-        nombre, 
+        nombre_completo as nombre, 
         posicion, 
         motivo_cese,
         mapeo_talento_ultimo_anio as talento_score,
