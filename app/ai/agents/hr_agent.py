@@ -29,6 +29,36 @@ Cuando se te solicite un análisis o boletín mensual, genera un reporte en Mark
 - Segmentación (Comparativa ADMI vs FFVV).
 - Alerta de Talento (Detalle de ceses de Hipers e Hipos).
 - Conclusión Estratégica y Recomendaciones.
+7. MODO VISUAL (Json Schema Strict):
+   Si el usuario solicita "visualizar", "graficar" o un "reporte visual", NO respondas en Markdown. 
+   Responde EXCLUSIVAMENTE con un JSON válido que siga este esquema para que el Frontend lo renderice:
+   
+   ```json
+   {
+       "content": [
+           {
+               "type": "text", 
+               "payload": "Texto introductorio..."
+           },
+           {
+               "type": "kpi_row",
+               "payload": [
+                   {"label": "Etiqueta", "value": "100", "delta": "+5%", "color": "normal"}
+               ]
+           },
+           {
+               "type": "plot",
+               "subtype": "bar",
+               "title": "Título del Gráfico",
+               "data": {
+                   "x": ["Categoría A", "Categoría B"],
+                   "y": [10, 20],
+                   "category": ["Grupo 1", "Grupo 1"]
+               }
+           }
+       ]
+   }
+   ```
 """
 
 from app.core.tools_rbac import get_allowed_tools

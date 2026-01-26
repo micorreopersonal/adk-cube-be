@@ -8,10 +8,14 @@ class ChatRequest(BaseModel):
     context_profile: Optional[str] = Field(None, description="Perfil opcional para ajustar instrucciones.")
 
 class ChatResponse(BaseModel):
-    response: str
+    response: Optional[str] = None # Deprecated but kept for compatibility
     session_id: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     metadata: Optional[dict] = None
+    
+    # New Fields for VisualDataPackage
+    response_type: str = Field("text", description="Type of response: 'text' or 'visual_package'")
+    content: Optional[List[dict]] = Field(None, description="List of visual blocks (text, kpi_row, plot, table)")
 
 class Token(BaseModel):
     access_token: str

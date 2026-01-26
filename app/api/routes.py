@@ -60,8 +60,44 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
     user_profile = current_user.profile or request.context_profile or "EJECUTIVO"
     response_text = await ai_router.route(request.message, session_id=request.session_id, profile=user_profile)
     
+    # Construir VisualDataPackage
+    from app.ai.utils.response_builder import ResponseBuilder
+    import json
+    
+    visual_package = None
+    
+    # 1. Intentar parsear si el agente respondió con JSON nativo (Visual Schema)
+    import re
+    
+    clean_text = response_text.strip()
+    
+    # Intento de limpieza de Markdown Code Barriers (```json ... ```)
+    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean_text, re.DOTALL)
+    if json_match:
+        clean_text = json_match.group(1)
+        
+    try:
+        # Intentamos parsear el texto (limpio o original)
+        if clean_text.startswith("{"):
+            potential_json = json.loads(clean_text)
+            if "content" in potential_json:
+                visual_package = potential_json
+                # Asegurar response_type
+                if "response_type" not in visual_package:
+                    visual_package["response_type"] = "visual_package"
+    except json.JSONDecodeError:
+        pass
+        
+    # 2. Fallback: Si no es JSON válido o no tiene estructura visual, envolvemos como texto
+    if not visual_package:
+        builder = ResponseBuilder()
+        builder.add_text(response_text)
+        visual_package = builder.to_dict()
+
     return ChatResponse(
-        response=response_text,
+        response=response_text, # Legacy support
+        response_type=visual_package["response_type"],
+        content=visual_package["content"],
         session_id=request.session_id,
         metadata={"agent_name": ai_router.name}
     )
