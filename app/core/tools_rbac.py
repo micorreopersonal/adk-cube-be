@@ -2,15 +2,19 @@ from typing import List, Callable
 from app.core.constants import ProfileEnum
 from app.ai.tools.bq_queries.hr_metrics import (
     get_monthly_attrition, 
-    get_talent_alerts
+    get_talent_alerts,
+    get_yearly_attrition,
+    get_monthly_trend
 )
+from app.ai.tools.bq_queries.turnover import get_turnover_deep_dive
+from app.ai.tools.bq_queries.leavers import get_leavers_list
 
 # Configuración centralizada de Roles y Herramientas (RBAC)
 TOOL_ACCESS_CONFIG = {
-    ProfileEnum.ADMIN.value: [get_monthly_attrition, get_talent_alerts],
-    ProfileEnum.ANALISTA.value: [get_monthly_attrition, get_talent_alerts],
-    ProfileEnum.GERENTE.value: [get_monthly_attrition, get_talent_alerts], # Gerente ve todo por ahora
-    ProfileEnum.EJECUTIVO.value: [get_monthly_attrition], # Ejecutivo solo ve métricas agregadas
+    ProfileEnum.ADMIN.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list],
+    ProfileEnum.ANALISTA.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list],
+    ProfileEnum.GERENTE.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list], # Gerente ve todo por ahora
+    ProfileEnum.EJECUTIVO.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_turnover_deep_dive], # Ejecutivo solo ve métricas agregadas
 }
 
 def get_allowed_tools(profile: str) -> List[Callable]:

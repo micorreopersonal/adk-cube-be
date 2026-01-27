@@ -4,13 +4,24 @@ class ResponseBuilder:
     def __init__(self):
         self.content: List[Dict[str, Any]] = []
 
-    def add_text(self, text: str):
-        """Adds a text block (Markdown supported)."""
+    def add_text(self, text: str, variant: str = "standard", severity: str = "info"):
+        """
+        Adds a text block. 
+        Variant: 'standard' or 'insight'.
+        Severity (for insights): 'info', 'warning', 'critical'.
+        """
         self.content.append({
             "type": "text",
-            "payload": text
+            "payload": text,
+            "variant": variant,
+            "severity": severity
         })
         return self
+
+    def add_insight_alert(self, text: str, severity: str = "critical"):
+        """Short-hand for adding an Executive Insight."""
+        return self.add_text(text, variant="insight", severity=severity)
+
 
     def add_kpi_row(self, kpis: List[Dict[str, Any]]):
         """
@@ -47,6 +58,29 @@ class ResponseBuilder:
             "type": "table",
             "payload": data
         })
+        return self
+
+    def add_debug_sql(self, query: str):
+        """Adds a SQL query block for debugging purposes."""
+        self.content.append({
+            "type": "debug_sql",
+            "payload": query
+        })
+        return self
+
+    def add_data_series(self, data: Dict[str, Any], metadata: Dict[str, Any] = None):
+        """
+        Adds a data series block for interactive visualizations.
+        Data should contain arrays for x-axis and multiple y-axis series.
+        Example: {"months": [...], "rotacion_general": [...], "rotacion_voluntaria": [...]}
+        """
+        block = {
+            "type": "data_series",
+            "payload": data
+        }
+        if metadata:
+            block["metadata"] = metadata
+        self.content.append(block)
         return self
 
     def to_dict(self) -> Dict[str, Any]:

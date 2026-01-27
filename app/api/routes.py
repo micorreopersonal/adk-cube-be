@@ -66,36 +66,59 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
     
     visual_package = None
     
-    # 1. Intentar parsear si el agente respondió con JSON nativo (Visual Schema)
-    import re
+    # 0. Caso Ideal: El Router ya devolvió un Diccionario (VisualDataPackage interceptado)
+    if isinstance(response_text, dict):
+        visual_package = response_text
+        # Fallback de seguridad
+        if "response_type" not in visual_package:
+            visual_package["response_type"] = "visual_package"
+        if "content" not in visual_package:
+             visual_package["content"] = []
     
-    clean_text = response_text.strip()
-    
-    # Intento de limpieza de Markdown Code Barriers (```json ... ```)
-    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean_text, re.DOTALL)
-    if json_match:
-        clean_text = json_match.group(1)
+    else:
+        # Caso Legacy/LLM: El Router devolvió un String (Texto o Markdown)
+        import re
+        import json
         
-    try:
-        # Intentamos parsear el texto (limpio o original)
-        if clean_text.startswith("{"):
-            potential_json = json.loads(clean_text)
-            if "content" in potential_json:
-                visual_package = potential_json
-                # Asegurar response_type
-                if "response_type" not in visual_package:
-                    visual_package["response_type"] = "visual_package"
-    except json.JSONDecodeError:
-        pass
+        clean_text = response_text.strip()
         
-    # 2. Fallback: Si no es JSON válido o no tiene estructura visual, envolvemos como texto
-    if not visual_package:
-        builder = ResponseBuilder()
-        builder.add_text(response_text)
-        visual_package = builder.to_dict()
+        # 1. Intentar parsear si el agente respondió con JSON nativo (Visual Schema) dentro de markdown
+        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean_text, re.DOTALL)
+        if json_match:
+            clean_text = json_match.group(1)
+            
+        try:
+            if clean_text.startswith("{"):
+                potential_json = json.loads(clean_text)
+                if "content" in potential_json:
+                    visual_package = potential_json
+                    if "response_type" not in visual_package:
+                        visual_package["response_type"] = "visual_package"
+        except json.JSONDecodeError:
+            pass
+            
+        # 2. Fallback: Si no pudimos parsear JSON, envolvemos el texto plano
+        if not visual_package:
+            builder = ResponseBuilder()
+            builder.add_text(response_text)
+            visual_package = builder.to_dict()
+
+    # Determinar el texto de respuesta (Legacy support)
+    final_response_text = ""
+    if isinstance(response_text, dict):
+        # Intentar extraer texto del payload si existe
+        if "content" in response_text:
+             for block in response_text["content"]:
+                 if block["type"] == "text":
+                     final_response_text += block["payload"] + "\n"
+        
+        if not final_response_text:
+            final_response_text = "Se han generado datos visuales. Revisa el componente interactivo."
+    else:
+        final_response_text = response_text
 
     return ChatResponse(
-        response=response_text, # Legacy support
+        response=final_response_text, 
         response_type=visual_package["response_type"],
         content=visual_package["content"],
         session_id=request.session_id,
