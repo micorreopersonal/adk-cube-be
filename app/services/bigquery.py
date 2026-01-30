@@ -18,8 +18,12 @@ class BigQueryService:
         return self._client
 
     def execute_query(self, query: str):
-        """Ejecuta una consulta SQL en BigQuery."""
-        query_job = self.client.query(query)
+        """Ejecuta una consulta SQL en BigQuery con Cost Guardrails (1 GB Limit)."""
+        job_config = bigquery.QueryJobConfig(
+            maximum_bytes_billed=10**9,  # 1 GB Limit (~$0.005 USD) per query
+            use_query_cache=True
+        )
+        query_job = self.client.query(query, job_config=job_config)
         return query_job.to_dataframe()
 
 def get_bq_service():

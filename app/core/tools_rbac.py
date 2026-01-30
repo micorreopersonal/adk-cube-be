@@ -8,14 +8,15 @@ from app.ai.tools.bq_queries.hr_metrics import (
 )
 from app.ai.tools.bq_queries.turnover import get_turnover_deep_dive
 from app.ai.tools.bq_queries.leavers import get_leavers_list
+from app.ai.tools.bq_queries.turnover_metrics import get_advanced_turnover_metrics
 from app.ai.tools.report_generator import generate_executive_report
 
 # Configuración centralizada de Roles y Herramientas (RBAC)
 TOOL_ACCESS_CONFIG = {
-    ProfileEnum.ADMIN.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, generate_executive_report],
-    ProfileEnum.ANALISTA.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, generate_executive_report],
-    ProfileEnum.GERENTE.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, generate_executive_report], 
-    ProfileEnum.EJECUTIVO.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_turnover_deep_dive, generate_executive_report], 
+    ProfileEnum.ADMIN.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, generate_executive_report, get_advanced_turnover_metrics],
+    ProfileEnum.ANALISTA.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, generate_executive_report, get_advanced_turnover_metrics],
+    ProfileEnum.GERENTE.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, generate_executive_report, get_advanced_turnover_metrics], 
+    ProfileEnum.EJECUTIVO.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_turnover_deep_dive, generate_executive_report, get_advanced_turnover_metrics], 
 }
 
 def get_allowed_tools(profile: str) -> List[Callable]:

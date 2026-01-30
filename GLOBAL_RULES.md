@@ -52,6 +52,9 @@ La estructura del proyecto sigue un patrón modular nativo de GCP:
 *   **Backend:** FastAPI estricto. La lógica de negocio debe residir en la "Service Layer", no en los endpoints.
 *   **Estado:** La aplicación debe ser **Stateless** (diseñada para Cloud Run). La persistencia de sesión se maneja en **Firestore**.
 *   **GCP Native:** Uso de BigQuery para datos de rotación y Cloud Storage para documentos normativos.
+*   **Trazabilidad (CODE OWNERSHIP):** Todo código nuevo (funciones, clases, scripts) que atienda una historia de usuario debe incluir un comentario explícito referencing su ID.
+    *   Ejemplo: `# TUS-001: Script de evaluación de alucinaciones`
+    *   Ejemplo: `# US-003: Lógica OLAP para rotación multidimensional`
 
 ---
 

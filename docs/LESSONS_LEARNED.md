@@ -57,5 +57,11 @@ Este documento recopila los desafíos técnicos enfrentados, los errores crític
     2.  **Mapeo Explícito:** Siempre usar adaptadores que transformen nombres de campos al cruzar fronteras (DB -> Aplicación).
     3.  **Logs de Pydantic:** Los errores de validación pueden ser silenciosos o genéricos ("Internal Server Error") si no se capturan explícitamente.
 
+### 7. Regression Testing de Agentes (LLMOps)
+*   **Problema:** Los scripts de prueba de consitencia fallaban al leer el output de las herramientas porque esperaban datos planos (dict) pero recibían objetos estructurados para UI (`ResponseBuilder`).
+*   **Solución:**
+    *   **Parsing Estructural:** Los tests que consumen Tools directamente deben navegar la estructura `visual_package` (`content` -> `payload`/`data` -> `kpi_row`) para extraer el dato crudo (Ground Truth).
+    *   **Debug Dump:** Imprimir el JSON completo de la tool cuando falla la extracción ahorra horas de adivinanza.
+
 ---
 **Autores:** Equipo de Desarrollo ADK & Antigravity (IA)

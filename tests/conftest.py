@@ -3,7 +3,7 @@ import sys
 import os
 
 # Asegurar que el directorio raíz del proyecto está en el PYTHONPATH
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 @pytest.fixture
 def mock_settings(mocker):
