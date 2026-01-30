@@ -5,21 +5,30 @@ from app.core.config import get_settings
 
 def get_advanced_turnover_metrics(
     periods: List[str],
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
     filters: Optional[Dict[str, str]] = None,
-    group_by: Optional[List[str]] = None
+    group_by: Optional[List[str]] = None,
+    **kwargs
 ) -> List[Dict]:
     """
-    Calcula métricas de rotación (Total y Voluntaria) excluyendo estrictamente 'PRACTICANTE'.
-    Soporta agregación temporal (promedio de HC mensual) y drill-down dinámico.
+    Calcula métricas de rotación avanzadas con soporte de filtrado organizacional.
 
     Args:
-        periods: Lista de fechas en formato 'YYYY-MM-DD' (ej. ['2025-01-01', '2025-02-01'])
-        filters: Diccionario de filtros adicionales (ej. {'division': 'TALENTO'})
-        group_by: Lista de columnas para agrupar (ej. ['area', 'uo3'])
-
+        periods: Lista de fechas 'YYYY-MM-DD'.
+        uo_level: Nivel organizacional ('uo2', 'uo3').
+        uo_value: Nombre de la unidad (ej: 'DIVISION FINANZAS').
+        filters: Filtros adicionales (Diccionario).
+        group_by: Columnas para agrupar ('uo2', 'uo3', 'motivo_cese').
+        
     Returns:
         Lista de diccionarios con las métricas calculadas.
     """
+    # Estandarizar filtros de UO
+    filters = filters or {}
+    if uo_value:
+        col = uo_level or "uo2"
+        filters[col] = uo_value
     client = get_bq_service().client
     settings = get_settings()
     

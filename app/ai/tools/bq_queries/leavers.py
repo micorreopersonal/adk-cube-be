@@ -8,20 +8,23 @@ bq_service = get_bq_service()
 
 def get_leavers_list(
     periodo: str, 
-    dimension: Optional[str] = None,
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
     tipo_rotacion: str = "VOLUNTARIA", 
-    segmento: str = "TOTAL"
+    segmento: str = "TOTAL",
+    **kwargs
 ) -> Dict[str, Any]:
     """
-    Obtiene el listado detallado de personas que cesaron (Leavers) aplicando filtros estrictos.
-    Retorna un VisualDataPackage con una Tabla.
-
+    Obtiene el listado detallado de personas que cesaron (Leavers) con soporte de UO.
+    
     Args:
-        dimension (str): Nivel organizacional (ej. "TECNOLOGIA", "COMERCIAL"). Opcional.
-        periodo (str): "YYYY", "MM-YYYY" o "YYYY-MM".
-        tipo_rotacion (str): "VOLUNTARIA", "INVOLUNTARIA", "TOTAL".
-        segmento (str): "ADMINISTRATIVO", "FFVV", "TOTAL".
+        periodo: 'YYYY' o 'YYYY-MM'
+        uo_level: Nivel organizacional ('uo2', 'uo3')
+        uo_value: Nombre de la unidad (ej: 'DIVISION FINANZAS')
+        tipo_rotacion: 'VOLUNTARIA' o 'TOTAL'
+        segmento: 'FFVV' o 'ADMI'
     """
+    dimension = uo_value or kwargs.get("uo_value") or kwargs.get("dimension")
     table_id = f"{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}"
     
     # 1. Filtros de Fecha (Robust Parsing)
@@ -63,16 +66,11 @@ def get_leavers_list(
         # Por defecto (TOTAL) siempre excluimos practicantes
         seg_filter = "AND segmento != 'PRACTICANTE'"
 
-    # 4. Filtro de Dimensión (UO2 - División)
-    # Si la dimension es genérica ("General", "Todas", "Total") o None, NO filtramos por UO2.
+    # 4. Filtro de Dimensión Estándar
     dim_filter = ""
-    ignored_dims = ["general", "total", "todas", "todo", "company", "compañia", "empresa", "corporativo", "global", "latam"]
-    
-    if dimension:
-        d_lower = dimension.lower()
-        # Evitar filtrar si es una palabra ignorada O si es igual al segmento (error común del agente)
-        if d_lower not in ignored_dims and d_lower != segmento.lower():
-            dim_filter = f"AND LOWER(uo2) LIKE '%{d_lower}%'"
+    if uo_value:
+        col = (uo_level or "uo2").lower()
+        dim_filter = f"AND LOWER({col}) LIKE '%{uo_value.lower()}%'"
 
     query = f"""
     SELECT 
@@ -81,6 +79,7 @@ def get_leavers_list(
         nombre_completo,
         posicion,
         segmento,
+        mapeo_talento_ultimo_anio as mapeo_talento,
         motivo_cese,
         fecha_cese
     FROM `{table_id}`
@@ -89,7 +88,7 @@ def get_leavers_list(
     {seg_filter}
     {dim_filter}
     ORDER BY fecha_cese DESC
-    LIMIT 100
+    LIMIT 500
     """
 
     df = bq_service.execute_query(query)
@@ -97,14 +96,16 @@ def get_leavers_list(
     rb = ResponseBuilder()
     
     if df.empty:
+        context_unit = f"para **{uo_value}**" if uo_value else "a nivel **Corporativo**"
         rb.add_text(
-            f"No se encontraron ceses para {dimension} en {periodo} ({tipo_rotacion}, {segmento}).", 
+            f"No se encontraron ceses {context_unit} en {periodo} ({tipo_rotacion}, {segmento}).", 
             variant="standard"
         )
     else:
         count = len(df)
+        context_unit = f"para **{uo_value}**" if uo_value else "a nivel **Corporativo**"
         rb.add_text(
-            f"Se encontraron {count} colaboradores que dejaron la compañía bajo estos criterios.", 
+            f"Se encontraron **{count}** colaboradores {context_unit} que dejaron la compañía bajo estos criterios.", 
             variant="standard"
         )
         
@@ -119,4 +120,154 @@ def get_leavers_list(
     # Debug SQL
     rb.add_debug_sql(query)
 
+    return rb.to_dict()
+
+
+def get_leavers_distribution(
+    periodo: str, 
+    breakdown_by: str, # "UO2", "UO3", "MOTIVO", "POSICION"
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
+    tipo_rotacion: str = "TOTAL",
+    segmento: str = "TOTAL",
+    tipo_talento: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Obtiene la distribución agregada de ceses con soporte de UO.
+    
+    Args:
+        periodo: 'YYYY' o 'YYYY-MM'
+        breakdown_by: 'UO2', 'UO3', 'MOTIVO', 'TALENTO'
+        uo_level: Nivel organizacional ('uo2', 'uo3')
+        uo_value: Nombre de la unidad
+        tipo_talento: 'HIPERS', 'HIPOS' o 'TODO_TALENTO'
+    """
+    dimension = uo_value or kwargs.get("uo_value") or kwargs.get("dimension")
+    table_id = f"{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}"
+    
+    # 1. Mapeo de columnas SQL segun breakdown
+    column_map = {
+        "UO2": "uo2",
+        "DIVISION": "uo2",
+        "UO3": "uo3",
+        "AREA": "uo3",
+        "UO4": "uo4",
+        "GERENCIA": "uo4",
+        "MOTIVO": "motivo_cese",
+        "POSICION": "posicion",
+        "SEGMENTO": "segmento",
+        "TALENTO": "mapeo_talento_ultimo_anio"
+    }
+    
+    col_sql = column_map.get(breakdown_by.upper(), "uo2")
+    label_friendly = breakdown_by.title()
+
+    # 2. Configurar Filtros (Reutilizando lógica similar a leavers list)
+    # Fecha
+    date_filter = "TRUE"
+    if "-" in periodo:
+        parts = periodo.split("-")
+        if len(parts) == 2:
+            p1, p2 = parts[0], parts[1]
+            if len(p1) == 4: anio, mes = p1, p2
+            else: mes, anio = p1, p2
+            try:
+                date_filter = f"EXTRACT(MONTH FROM fecha_cese) = {int(mes)} AND EXTRACT(YEAR FROM fecha_cese) = {int(anio)}"
+            except: pass
+    else:
+        try:
+            date_filter = f"EXTRACT(YEAR FROM fecha_cese) = {int(periodo)}"
+        except: pass
+
+    # Tipo (Voluntaria)
+    type_filter = ""
+    if tipo_rotacion.upper() == "VOLUNTARIA":
+        type_filter = "AND LOWER(motivo_cese) LIKE '%renuncia%'"
+    
+    # Segmento
+    seg_filter = ""
+    if segmento.upper() == "FFVV":
+        seg_filter = "AND segmento = 'EMPLEADO FFVV'"
+    elif segmento.upper() in ["ADMINISTRATIVO", "ADMI"]:
+        seg_filter = "AND segmento !='EMPLEADO FFVV' AND segmento != 'PRACTICANTE'"
+    else:
+        seg_filter = "AND segmento != 'PRACTICANTE'"
+
+    # Dimension previa estandarizada
+    dim_filter = ""
+    if uo_value:
+        col = (uo_level or "uo2").lower()
+        dim_filter = f"AND LOWER({col}) LIKE '%{uo_value.lower()}%'"
+
+    # --- NUEVO: Filtro de Talento (HU-008) ---
+    talento_filter = ""
+    talento_label = ""
+    if tipo_talento:
+        val = str(tipo_talento).upper()
+        if "HIPER" in val:
+            talento_filter = "AND mapeo_talento_ultimo_anio IN (7)"
+            talento_label = " (Hipers)"
+        elif "HIPO" in val:
+            talento_filter = "AND mapeo_talento_ultimo_anio IN (8, 9)"
+            talento_label = " (Hipos)"
+        elif "TALENTO" in val or "TODO" in val:
+            talento_filter = "AND mapeo_talento_ultimo_anio IN (7, 8, 9)"
+            talento_label = " (Talento Clave)"
+
+    # 3. Query de Agregación
+    query = f"""
+    SELECT 
+        {col_sql} as category,
+        COUNT(*) as count
+    FROM `{table_id}`
+    WHERE {date_filter}
+    {type_filter}
+    {seg_filter}
+    {dim_filter}
+    {talento_filter}
+    GROUP BY 1
+    ORDER BY 2 DESC
+    LIMIT 20
+    """
+
+    df = bq_service.execute_query(query)
+    rb = ResponseBuilder()
+
+    if df.empty:
+        rb.add_text(f"No se encontraron ceses{talento_label} para distribuir por {label_friendly} en {periodo}.")
+        return rb.to_dict()
+
+    # 4. Procesar Data para Chart
+    total_count = df['count'].sum()
+    chart_data = []
+    
+    for _, row in df.iterrows():
+        val = int(row['count'])
+        pct = val / total_count if total_count > 0 else 0
+        chart_data.append({
+            "label": str(row['category']),
+            "value": val,
+            "percentage": round(pct, 2)
+        })
+
+    # Decidir tipo de gráfico (Si son pocos items, Pie Chart es viable, si son muchos, Bar Chart)
+    chart_type = "pie_chart" if len(chart_data) <= 5 else "bar_chart"
+    
+    context_unit = f"en **{uo_value}**" if uo_value else "a nivel **Corporativo**"
+    title = f"Distribución de Ceses{talento_label} por {label_friendly} ({periodo}) {context_unit}"
+    rb.add_distribution_chart(
+        chart_data, 
+        title=title, 
+        chart_type=chart_type,
+        x_label=label_friendly,
+        y_label="N° Ceses"
+    )
+    
+    rb.add_text(
+        f"Se analizaron {total_count} salidas de {talento_label.strip() if talento_label else 'colaboradores'}. Mostrando los top {len(chart_data)} grupos.",
+        variant="insight", severity="info"
+    )
+    
+    rb.add_debug_sql(query)
     return rb.to_dict()

@@ -28,6 +28,14 @@
 3.  **Alertas de Talento:**
     *   Detecta salidas de empleados clave (Score 7, 8, 9).
 
+4.  **Navegación Jerárquica y Detección de Hotspots (HU-009):**
+    *   **Drilldown Organizacional**: Navega por niveles jerárquicos (UO2→UO3→UO4) para profundizar en la estructura organizacional.
+    *   **Benchmark Automático**: Calcula la tasa de rotación promedio de la unidad padre para comparación.
+    *   **Detección de Hotspots**: Identifica automáticamente áreas organizacionales con rotación superior al promedio de su unidad padre.
+    *   **Impacto Financiero**: Cuantifica el costo económico de las salidas en áreas críticas.
+    *   **Visualización Comparativa**: Genera gráficos que comparan sub-unidades contra el benchmark divisional.
+
+
 ---
 
 ## 3. Payloads de Prueba para Swagger
@@ -63,6 +71,36 @@ Copia y pega estos JSONs en el endpoint `POST /chat` (`http://127.0.0.1:8000/doc
   "context_profile": "ADMIN"
 }
 ```
+
+### Caso D: Drilldown Organizacional con Detección de Hotspots (HU-009)
+**Pregunta:** "¿Cuáles son las áreas críticas de la División Finanzas?"
+```json
+{
+  "message": "Haz un desglose de la rotación en la División Finanzas y dime cuáles son las áreas críticas",
+  "session_id": "test-session-004",
+  "context_profile": "EJECUTIVO"
+}
+```
+
+**Respuesta Esperada:**
+- Tasa de rotación promedio de la División Finanzas (benchmark)
+- Listado de áreas (UO3) con rotación superior al promedio
+- Gráfico comparativo de todas las áreas vs. benchmark
+- Impacto financiero estimado de las salidas en áreas críticas
+
+### Caso E: Análisis con Soporte de Trimestres (NEW)
+**Pregunta:** "Analiza el último trimestre de la División Talento"
+```json
+{
+  "message": "Haz un desglose de la rotación del último trimestre en la División Talento",
+  "session_id": "test-session-005",
+  "context_profile": "EJECUTIVO"
+}
+```
+**Respuesta Esperada:**
+- Análisis consolidado de Octubre, Noviembre y Diciembre (si estamos en Q4).
+- Benchmark calculado sobre el trimestre completo.
+- Identificación de áreas críticas basadas en el acumulado trimestral.
 
 ---
 

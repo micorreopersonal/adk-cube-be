@@ -11,7 +11,26 @@ Este backlog gestiona las capacidades de negocio (Business Capabilities) del Age
     * Análisis por cualquier nivel de jerarquía flexible (UO2-UO6).
     * Exclusión automática de Practicantes para KPIs oficiales de Negocio.
 
-### 2. TOOL: get_talent_leakage
+### 3. HU-006: Análisis Distributivo y Visualización (Histogramas)
+* **Status:** ✅ IMPLEMENTADO
+* **Entregable:** Tool `get_leavers_distribution` + `add_distribution_chart`.
+* **Evidencia:** `tests/test_hu_006.py` (PASS).
+
+### 3. HU-007: Periodos Flexibles (Zoom Temporal)
+* **Status:** ✅ IMPLEMENTADO
+* **Entregable:** `get_monthly_trend(month_start, month_end)`.
+* **Evidencia:** `tests/test_hu_007.py` (PASS).
+
+### 4. HU-008: Filtro de Talento en Distribuciones
+* **Status:** ✅ IMPLEMENTADO
+* **Entregable:** Filtro `tipo_talento` en `get_leavers_distribution`.
+* **Evidencia:** `tests/test_hu_008.py` (PASS).
+
+### 5. Robustez Global (Anti-Crasheo)
+* **Mejora:** Implementación de `**kwargs` en todas las herramientas del Agente.
+* **Impacto:** Eliminación de Errores 500 por alucinación de parámetros.
+
+### 6. TOOL: get_turnover_deep_dive
 * **Nota:** Implementado como `get_talent_alerts`.
 * **Descripción Humana:** Identifica la pérdida de colaboradores con alto potencial. Responde a preguntas sobre los cortes específicos de la matriz de talento.
 * **Alcance:**

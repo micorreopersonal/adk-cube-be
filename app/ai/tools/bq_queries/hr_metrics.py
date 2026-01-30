@@ -10,15 +10,20 @@ settings = get_settings()
 bq_service = get_bq_service()
 table_id = f"{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}"
 
-def _fetch_yearly_series(year: int, segment: Optional[str] = None) -> tuple[Dict[str, Any], str]:
-    """Helper to fetch yearly trend data for visualizations."""
-    # Filtro de segmento
-    if segment and segment.upper() == "FFVV":
+def _fetch_yearly_series(year: int, segmento: Optional[str] = None, uo_level: Optional[str] = None, uo_value: Optional[str] = None) -> tuple[Dict[str, Any], str]:
+    """Helper to fetch yearly trend data for visualizations with UO support."""
+    # 1. Filtro de segmento
+    if segmento and segmento.upper() == "FFVV":
         segment_filter = "AND segmento = 'EMPLEADO FFVV'"
-    elif segment and segment.upper() in ["ADMINISTRATIVO", "ADMI"]:
+    elif segmento and segmento.upper() in ["ADMINISTRATIVO", "ADMI"]:
         segment_filter = "AND segmento != 'EMPLEADO FFVV' AND segmento != 'PRACTICANTE'"
     else:
         segment_filter = "AND segmento != 'PRACTICANTE'"
+
+    # 2. Filtro de dimensión (UO)
+    dim_filter = ""
+    if uo_level and uo_value:
+        dim_filter = f"AND LOWER({uo_level.lower()}) LIKE '%{uo_value.lower()}%'"
 
     query = f"""
     WITH 
@@ -29,7 +34,7 @@ def _fetch_yearly_series(year: int, segment: Optional[str] = None) -> tuple[Dict
         FROM `{table_id}`
         WHERE EXTRACT(YEAR FROM fecha_corte) = {year}
         AND estado = 'Activo'
-        {segment_filter}
+        {segment_filter} {dim_filter}
         GROUP BY 1
     ),
     MonthlyCeses AS (
@@ -39,7 +44,7 @@ def _fetch_yearly_series(year: int, segment: Optional[str] = None) -> tuple[Dict
             COUNTIF(UPPER(motivo_cese) = 'RENUNCIA') as cesados_voluntarios
         FROM `{table_id}`
         WHERE EXTRACT(YEAR FROM fecha_cese) = {year}
-        {segment_filter}
+        {segment_filter} {dim_filter}
         GROUP BY 1
     )
     SELECT 
@@ -86,34 +91,51 @@ def _fetch_yearly_series(year: int, segment: Optional[str] = None) -> tuple[Dict
     }, query
 
 
-def get_monthly_attrition(month: int, year: int, segment: Optional[str] = None) -> Dict[str, Any]:
+def get_monthly_attrition(
+    month: int, 
+    year: int, 
+    segmento: Optional[str] = None, 
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
     """
-    Calcula la tasa de rotación mensual según las reglas de negocio:
-    - Excluye PRACTICANTE.
-    - Criterio Voluntario: motivo_cese = 'RENUNCIA' (exacto).
-    - Fórmula: (Suma de Cesados del Mes / Headcount Inicial del Mes).
-    - HC Inicial = Personal Activo del mes anterior.
+    Calcula la tasa de rotación mensual con soporte de segmentación y dimensión UO.
+    
+    Args:
+        month: Mes (1-12)
+        year: Año
+        segment: 'FFVV', 'ADMI' o 'TOTAL'
+        uo_level: Nivel organizacional ('uo2', 'uo3', 'uo4')
+        uo_value: Nombre de la unidad (ej: 'DIVISION FINANZAS')
     """
-    # Filtro por segmento
-    if segment and segment.upper() == "FFVV":
+    # Extraer parámetros de UO (priorizando explicitos)
+    uo_level = uo_level or kwargs.get("uo_level") or kwargs.get("dimension") or "uo2"
+    uo_value = uo_value or kwargs.get("uo_value") or kwargs.get("value")
+
+    # 1. Filtro por segmento
+    if segmento and segmento.upper() == "FFVV":
         segment_filter = "AND segmento = 'EMPLEADO FFVV'"
-    elif segment and segment.upper() in ["ADMINISTRATIVO", "ADMI"]:
+    elif segmento and segmento.upper() in ["ADMINISTRATIVO", "ADMI"]:
         segment_filter = "AND segmento != 'EMPLEADO FFVV' AND segmento != 'PRACTICANTE'"
     else:
         segment_filter = "AND segmento != 'PRACTICANTE'"
 
+    # 2. Filtro de dimensión (UO)
+    dim_filter = ""
+    if uo_level and uo_value:
+        dim_filter = f"AND LOWER({uo_level.lower()}) LIKE '%{uo_value.lower()}%'"
+
     query = f"""
     WITH 
-    -- Obtener HC del mes anterior (Estrictamente t-1)
     HcInicial AS (
         SELECT COUNT(DISTINCT codigo_persona) as hc 
         FROM `{table_id}`
         WHERE EXTRACT(YEAR FROM fecha_corte) = {year if month > 1 else year - 1}
         AND EXTRACT(MONTH FROM fecha_corte) = {month - 1 if month > 1 else 12}
         AND estado = 'Activo'
-        {segment_filter}
+        {segment_filter} {dim_filter}
     ),
-    -- Obtener Cesados del mes
     Cesados AS (
         SELECT 
             COUNT(*) as total_cesados,
@@ -121,13 +143,12 @@ def get_monthly_attrition(month: int, year: int, segment: Optional[str] = None) 
         FROM `{table_id}`
         WHERE EXTRACT(MONTH FROM fecha_cese) = {month}
         AND EXTRACT(YEAR FROM fecha_cese) = {year}
-        {segment_filter}
+        {segment_filter} {dim_filter}
     )
     SELECT 
         COALESCE(h.hc, 0) as hc_inicial,
         COALESCE(c.total_cesados, 0) as total_cesados,
         COALESCE(c.cesados_voluntarios, 0) as cesados_voluntarios,
-        
         SAFE_DIVIDE(COALESCE(c.total_cesados, 0), NULLIF(h.hc, 0)) as tasa_rotacion_general,
         SAFE_DIVIDE(COALESCE(c.cesados_voluntarios, 0), NULLIF(h.hc, 0)) as tasa_rotacion_voluntaria
     FROM Cesados c
@@ -211,8 +232,7 @@ def get_monthly_attrition(month: int, year: int, segment: Optional[str] = None) 
     # Construir VisualDataPackage
     rb = ResponseBuilder()
 
-    # --- Lógica de Etiquetado Dinámico (Naming Strategy) ---
-    # Diccionario escalable para "humanizar" los códigos de segmento
+    # --- Lógica de Etiquetado Dinámico ---
     segment_names = {
         "FFVV": "Fuerza de Ventas",
         "ADMINISTRATIVO": "Administrativa",
@@ -220,9 +240,8 @@ def get_monthly_attrition(month: int, year: int, segment: Optional[str] = None) 
     }
     
     # Determinar sufijo para títulos y textos
-    if segment:
-        clean_seg = segment.upper()
-        # Si está en el mapa, usar nombre bonito, sino usar el código limpio
+    if segmento:
+        clean_seg = segmento.upper()
         seg_display = segment_names.get(clean_seg, clean_seg) 
         kpi_title = f"Rotación {seg_display}"
         text_context = f"la rotación de {seg_display}"
@@ -230,12 +249,12 @@ def get_monthly_attrition(month: int, year: int, segment: Optional[str] = None) 
         kpi_title = "Rotación General"
         text_context = "la rotación general"
     
-    # 1. KPIs Principales
+    # 1. KPIs Principales Enriquecidos
     kpis = [
         {
             "label": kpi_title,
             "value": f"{rotacion_general:.2%}",
-            "delta": f"{row['total_cesados']} ceses",
+            "delta": f"{row['total_cesados']} ceses (Base HC: {int(row['hc_inicial'])})",
             "color": "red" if rotacion_general > 0.02 else "green"
         },
         {
@@ -243,20 +262,23 @@ def get_monthly_attrition(month: int, year: int, segment: Optional[str] = None) 
             "value": f"{rotacion_voluntaria:.2%}",
             "delta": f"{row['cesados_voluntarios']} renuncias",
             "color": "orange" 
-        },
-        {
-            "label": "Headcount Base",
-            "value": str(int(row['hc_inicial'])),
-            "color": "blue"
         }
     ]
     rb.add_kpi_row(kpis)
 
-    # 2. Insight Automático
+    # 2. Insight Automático con Confirmación de Unidad
+    context_unit = f"para **{uo_value}**" if uo_value else "a nivel **Corporativo**"
+    
     if rotacion_general > 0.0:
         rb.add_text(
-            f"En {month}/{year}, {text_context} fue del {rotacion_general:.2%}, "
+            f"En {month}/{year}, {text_context} {context_unit} fue del **{rotacion_general:.2%}**, "
             f"con {int(row['total_cesados'])} salidas totales sobre una base de {int(row['hc_inicial'])} colaboradores.",
+            variant="insight", severity="info"
+        )
+    elif uo_value:
+        rb.add_text(
+            f"No se registraron salidas para **{uo_value}** en {month}/{year}. "
+            f"La dotación base en este periodo fue de {int(row['hc_inicial'])} colaboradores.",
             variant="insight", severity="info"
         )
 
@@ -265,10 +287,32 @@ def get_monthly_attrition(month: int, year: int, segment: Optional[str] = None) 
 
     return rb.to_dict()
 
-def get_talent_alerts(month: int, year: int) -> Dict[str, Any]:
+def get_talent_alerts(
+    month: int, 
+    year: int, 
+    segmento: Optional[str] = None, 
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
     """
-    Detecta fugas de talento clave (Hiper/Hipo) en el mes especificado.
+    Detecta fugas de talento clave (Hiper/Hipo) con soporte de UO.
+    
+    Args:
+        month: Mes
+        year: Año
+        uo_level: Nivel organizacional ('uo2', 'uo3')
+        uo_value: Nombre de la unidad
     """
+    # Extraer parámetros de UO
+    uo_level = uo_level or kwargs.get("uo_level") or kwargs.get("dimension")
+    uo_value = uo_value or kwargs.get("uo_value") or kwargs.get("value")
+
+    # Filtro de dimensión (UO)
+    dim_filter = ""
+    if uo_level and uo_value:
+        dim_filter = f"AND LOWER({uo_level.lower()}) LIKE '%{uo_value.lower()}%'"
+
     query = f"""
     SELECT 
         nombre_completo,
@@ -281,6 +325,7 @@ def get_talent_alerts(month: int, year: int) -> Dict[str, Any]:
     WHERE EXTRACT(MONTH FROM fecha_cese) = {month}
     AND EXTRACT(YEAR FROM fecha_cese) = {year}
     AND mapeo_talento_ultimo_anio IN (7, 8, 9)  -- Hipers (7) y Hipos (8,9)
+    {dim_filter}
     ORDER BY mapeo_talento_ultimo_anio DESC, fecha_cese DESC
     """
     
@@ -306,18 +351,38 @@ def get_talent_alerts(month: int, year: int) -> Dict[str, Any]:
     rb.add_debug_sql(query)
     return rb.to_dict()
 
-def get_yearly_attrition(year: int, segment: Optional[str] = None) -> Dict[str, Any]:
+def get_yearly_attrition(
+    year: int, 
+    segmento: Optional[str] = None, 
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
     """
-    Calcula la rotación anual según fórmula oficial:
-    Rotación Anual = Total Cesados Únicos del Año / Promedio Headcount Anualizado
+    Calcula la rotación anual con soporte de segmentación y dimensión UO.
+    
+    Args:
+        year: Año
+        segmento: 'FFVV', 'ADMI' o 'TOTAL'
+        uo_level: Nivel organizacional ('uo2', 'uo3')
+        uo_value: Nombre de la unidad
     """
+    # Extraer parámetros de UO
+    uo_level = uo_level or kwargs.get("uo_level") or kwargs.get("dimension")
+    uo_value = uo_value or kwargs.get("uo_value") or kwargs.get("value")
+
     # Filtro de segmento
-    if segment and segment.upper() == "FFVV":
+    if segmento and segmento.upper() == "FFVV":
         segment_filter = "AND segmento = 'EMPLEADO FFVV'"
-    elif segment and segment.upper() in ["ADMINISTRATIVO", "ADMI"]:
+    elif segmento and segmento.upper() in ["ADMINISTRATIVO", "ADMI"]:
         segment_filter = "AND segmento != 'EMPLEADO FFVV' AND segmento != 'PRACTICANTE'"
     else:
         segment_filter = "AND segmento != 'PRACTICANTE'"
+
+    # Filtro de dimensión (UO)
+    dim_filter = ""
+    if uo_level and uo_value:
+        dim_filter = f"AND LOWER({uo_level.lower()}) LIKE '%{uo_value.lower()}%'"
 
     query = f"""
     WITH 
@@ -328,7 +393,7 @@ def get_yearly_attrition(year: int, segment: Optional[str] = None) -> Dict[str, 
         FROM `{table_id}`
         WHERE EXTRACT(YEAR FROM fecha_corte) = {year}
         AND estado = 'Activo'
-        {segment_filter}
+        {segment_filter} {dim_filter}
         GROUP BY 1
     ),
     AnnualStats AS (
@@ -337,12 +402,12 @@ def get_yearly_attrition(year: int, segment: Optional[str] = None) -> Dict[str, 
             (SELECT COUNT(DISTINCT nombre_completo) 
              FROM `{table_id}` 
              WHERE EXTRACT(YEAR FROM fecha_cese) = {year}
-             {segment_filter}
+             {segment_filter} {dim_filter}
             ) as total_cesados,
             (SELECT COUNT(DISTINCT CASE WHEN UPPER(motivo_cese) = 'RENUNCIA' THEN nombre_completo END)
              FROM `{table_id}` 
              WHERE EXTRACT(YEAR FROM fecha_cese) = {year}
-             {segment_filter}
+             {segment_filter} {dim_filter}
             ) as total_renuncias
         FROM MonthlyHC
     )
@@ -371,104 +436,275 @@ def get_yearly_attrition(year: int, segment: Optional[str] = None) -> Dict[str, 
 
     rb = ResponseBuilder()
 
-    # 1. KPIs Anuales
+    # 1. KPIs Anuales Enriquecidos
     kpis = [
         {
             "label": f"Rotación Anual {year}",
             "value": f"{tasa_anual:.2%}",
-            "delta": f"{total_cesados} ceses",
-            "color": "red" if tasa_anual > 0.15 else "green" # Umbral anual aprox 15%
+            "delta": f"{total_cesados} ceses (Avg HC: {avg_hc})",
+            "color": "red" if tasa_anual > 0.15 else "green" 
         },
         {
             "label": f"Voluntaria {year}",
             "value": f"{tasa_voluntaria:.2%}",
             "delta": f"{total_renuncias} renuncias",
             "color": "orange" 
-        },
-        {
-            "label": "HC Promedio",
-            "value": str(avg_hc),
-            "color": "blue"
         }
     ]
     rb.add_kpi_row(kpis)
     
+    context_unit = f"para **{uo_value}**" if uo_value else "a nivel **Corporativo**"
+    
     rb.add_text(
-        f"En el acumulado del {year}, la compañía cerró con una rotación anual del **{tasa_anual:.2%}** ({total_cesados} salidas). "
+        f"En el acumulado del {year}, la unidad **{context_unit}** cerró con una rotación anual del **{tasa_anual:.2%}** ({total_cesados} salidas). "
         f"El headcount promedio se mantuvo en {avg_hc} colaboradores.",
         variant="insight"
     )
 
-    # 2. Contexto Anual (Data Series)
-    series_data, series_query = _fetch_yearly_series(year, segment)
+    # 2. Contexto Anual (Data Series) con soporte de UO
+    series_data, series_query = _fetch_yearly_series(year, segmento, uo_level=uo_level, uo_value=uo_value)
     if series_data:
-        rb.add_data_series(series_data, metadata={"year": year, "segment": segment or "TOTAL"})
+        rb.add_data_series(series_data, metadata={
+            "year": year, 
+            "segmento": segmento or "TOTAL",
+            "uo_level": uo_level,
+            "uo_value": uo_value
+        })
 
     # 3. Debug SQL (Incluye ambas queries)
     rb.add_debug_sql(f"-- Query Anual KPI:\n{query}\n\n-- Query Tendencia Mensual:\n{series_query}")
 
     return rb.to_dict()
 
-def get_monthly_trend(year: int, segment: Optional[str] = None) -> Dict[str, Any]:
+def get_monthly_trend(
+    year: int, 
+    segmento: Optional[str] = None,
+    month_start: int = 1,
+    month_end: int = 12,
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
     """
-    Obtiene la tendencia mensual de rotación para todo un año.
-    Retorna datos estructurados para visualización interactiva (gráficos + tabla).
+    Obtiene la tendencia mensual de rotación con soporte de dimensiones.
     
     Args:
         year: Año a analizar
-        segment: Segmento opcional ('FFVV', 'ADMINISTRATIVO', 'TOTAL')
-    
-    Returns:
-        VisualDataPackage con data_series para visualización interactiva
+        segmento: Segmento opcional ('FFVV', 'ADMI')
+        month_start: Mes inicio
+        month_end: Mes fin
+        uo_level: Nivel organizacional ('uo2', 'uo3')
+        uo_value: Nombre de la unidad
     """
-    series_data, series_query = _fetch_yearly_series(year, segment)
+    # Validar consistencia básica
+    if month_start < 1: month_start = 1
+    if month_end > 12: month_end = 12
+    if month_start > month_end: month_start, month_end = 1, 12 # Fallback reset
     
-    if not series_data:
+    # Extraer parámetros de UO
+    uo_level = uo_level or kwargs.get("uo_level") or kwargs.get("dimension") or "uo2"
+    uo_value = uo_value or kwargs.get("uo_value") or kwargs.get("value")
+
+    # Trae el año filtrado por UO
+    full_data, series_query = _fetch_yearly_series(year, segmento, uo_level=uo_level, uo_value=uo_value)
+    
+    if not full_data or not full_data.get("months"):
         return ResponseBuilder().add_text(f"No se encontraron datos para el año {year}").to_dict()
 
-    # Calcular KPIs resumen desde los datos ya procesados
-    rotacion_general = series_data["rotacion_general"]
-    ceses = series_data["ceses"]
+    # --- Lógica de Filtrado (HU-007) ---
+    # Los arrays SQL vienen ordenados por mes (1..12).
+    # Sin embargo, el resultado de SQL puede no traer meses futuros si no existen.
+    # Debemos mapear los meses reales que trajo SQL para filtrar correctamente.
     
-    avg_rotacion = sum(rotacion_general) / len(rotacion_general) if rotacion_general else 0.0
-    max_rotacion = max(rotacion_general) if rotacion_general else 0.0
-    min_rotacion = min(rotacion_general) if rotacion_general else 0.0
-    total_ceses_year = sum(ceses)
+    # 1. Reconstruir lista de tuplas para filtrar seguro
+    # Estructura temporal: [(mes_nombre, rot_gen, ...), ...]
+    zipped_data = []
+    
+    # Mapper de nombre a numero para filtro preciso
+    mes_map = {"Ene":1, "Feb":2, "Mar":3, "Abr":4, "May":5, "Jun":6, 
+               "Jul":7, "Ago":8, "Sep":9, "Oct":10, "Nov":11, "Dic":12}
+    
+    count_items = len(full_data["months"])
+    for i in range(count_items):
+        m_name = full_data["months"][i]
+        m_num = mes_map.get(m_name, 0)
+        
+        # Solo incluir si está en el rango solicitado
+        if month_start <= m_num <= month_end:
+             zipped_data.append({
+                 "months": m_name,
+                 "rotacion_general": full_data["rotacion_general"][i],
+                 "rotacion_voluntaria": full_data["rotacion_voluntaria"][i],
+                 "headcount": full_data["headcount"][i],
+                 "ceses": full_data["ceses"][i],
+                 "renuncias": full_data["renuncias"][i]
+             })
+             
+    if not zipped_data:
+         context_unit = f"para **{uo_value}**" if uo_value else ""
+         return ResponseBuilder().add_text(
+             f"No se encontraron datos registrados {context_unit} entre {month_start}/{year} y {month_end}/{year}."
+         ).to_dict()
+
+    # 2. Desempaquetar data filtrada
+    filtered_series = {
+        "months": [x["months"] for x in zipped_data],
+        "rotacion_general": [x["rotacion_general"] for x in zipped_data],
+        "rotacion_voluntaria": [x["rotacion_voluntaria"] for x in zipped_data],
+        "headcount": [x["headcount"] for x in zipped_data],
+        "ceses": [x["ceses"] for x in zipped_data],
+        "renuncias": [x["renuncias"] for x in zipped_data]
+    }
+
+    # 3. Recalcular KPIs sobre el RANGO FILTRADO
+    rot_gen_slice = filtered_series["rotacion_general"]
+    ceses_slice = filtered_series["ceses"]
+    
+    avg_rotacion = sum(rot_gen_slice) / len(rot_gen_slice) if rot_gen_slice else 0.0
+    max_rotacion = max(rot_gen_slice) if rot_gen_slice else 0.0
+    min_rotacion = min(rot_gen_slice) if rot_gen_slice else 0.0
+    total_ceses_period = sum(ceses_slice)
     
     rb = ResponseBuilder()
     
-    # 1. KPIs Resumen
+    # 4. Construir KPIs
+    label_periodo = f"Promedio ({month_start}-{month_end}/{year})" if (month_start > 1 or month_end < 12) else f"Promedio {year}"
+    
     kpis = [
         {
-            "label": f"Promedio {year}",
+            "label": label_periodo,
             "value": f"{avg_rotacion:.2f}%",
-            "delta": f"{total_ceses_year} ceses totales",
+            "delta": f"{total_ceses_period} ceses en periodo",
             "color": "blue"
         },
         {
-            "label": "Máximo Mensual",
+            "label": "Máximo del Periodo",
             "value": f"{max_rotacion:.2f}%",
             "color": "red"
         },
         {
-            "label": "Mínimo Mensual",
+            "label": "Mínimo del Periodo",
             "value": f"{min_rotacion:.2f}%",
             "color": "green"
         }
     ]
     rb.add_kpi_row(kpis)
     
-    # 2. Texto introductorio
+    # 5. Texto de Contexto con Confirmación de Unidad y Segmento
+    context_unit = f"para **{uo_value}**" if uo_value else "a nivel **Corporativo**"
+    
+    seg_names = {"FFVV": "Fuerza de Ventas", "ADMI": "Administrativa", "ADMINISTRATIVO": "Administrativa"}
+    context_seg = f" del segmento **{seg_names.get(segmento.upper(), segmento)}**" if segmento else ""
+    
+    range_text = f"entre los meses {month_start} y {month_end} de {year}" if (month_start > 1 or month_end < 12) else f"para el año {year}"
+    
     rb.add_text(
-        f"A continuación, se presenta la evolución mensual de la rotación para el año {year}. "
-        f"Puedes alternar entre gráfico de línea, barras o tabla detallada.",
+        f"A continuación, se presenta la evolución de rotación {range_text} {context_unit}{context_seg}.",
         variant="standard"
     )
     
-    # 3. Data Series para visualización interactiva
-    rb.add_data_series(series_data, metadata={"year": year, "segment": segment or "TOTAL"})
+    # 6. Data Series Filtrada
+    rb.add_data_series(filtered_series, metadata={"year": year, "segmento": segmento or "TOTAL"})
     
-    # 4. Debug SQL
+    # 7. Debug SQL (Query anual original)
     rb.add_debug_sql(series_query)
     
+    return rb.to_dict()
+
+def get_headcount_stats(
+    periodo: str = "2025", 
+    uo_level: Optional[str] = None, 
+    uo_value: Optional[str] = None, 
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Obtiene un snapshot de la población activa (Headcount).
+    Soporta formatos: '2025', '2025-01', '2025-Q1'..'2025-Q4'.
+    """
+    rb = ResponseBuilder()
+    
+    # Reutilizar lógica de parsing de trimestres/fechas
+    def parse_periodo_hc(p: str):
+        if "-Q" in p.upper():
+            year_str, q_str = p.upper().split("-Q")
+            q_map = {"1": 1, "2": 4, "3": 7, "4": 10}
+            m = q_map.get(q_str, 1)
+            f = f"EXTRACT(YEAR FROM fecha_corte) = {int(year_str)} AND EXTRACT(MONTH FROM fecha_corte) = {m}"
+            l = f"Q{q_str} {year_str}"
+            return f, l
+        elif len(p) == 7 and "-" in p:
+            year, month = p.split("-")
+            f = f"EXTRACT(YEAR FROM fecha_corte) = {int(year)} AND EXTRACT(MONTH FROM fecha_corte) = {int(month)}"
+            return f, p
+        else:
+            year_val = int(p[:4])
+            # Para el año, mostramos el HC al inicio del año (o último disponible)
+            f = f"EXTRACT(YEAR FROM fecha_corte) = {year_val} AND EXTRACT(MONTH FROM fecha_corte) = 1"
+            return f, str(year_val)
+
+    date_filter, periodo_label = parse_periodo_hc(periodo)
+    
+    # Filtro de unidad
+    dim_filter = ""
+    if uo_level and uo_value:
+        col = uo_level.lower()
+        dim_filter = f"AND LOWER({col}) LIKE '%{uo_value.lower()}%'"
+
+    # Determinar nivel de desglose
+    child_level = "uo2" if not uo_level else ("uo3" if uo_level.lower() == "uo2" else "uo4")
+    
+    query = f"""
+    SELECT 
+        {child_level} as unidad,
+        COUNT(DISTINCT codigo_persona) as hc
+    FROM `{table_id}`
+    WHERE {date_filter}
+    AND estado = 'Activo'
+    AND segmento != 'PRACTICANTE'
+    {dim_filter}
+    GROUP BY 1
+    ORDER BY hc DESC
+    """
+    
+    df = bq_service.execute_query(query)
+    
+    if df.empty:
+        return rb.add_text(f"No se encontró información de población para {periodo_label}").to_dict()
+
+    total_hc = int(df['hc'].sum())
+    
+    # 1. KPI Principal
+    rb.add_kpi_row([
+        {
+            "label": f"Headcount Total ({periodo_label})",
+            "value": f"{total_hc:,}",
+            "delta": uo_value if uo_value else "Corporativo",
+            "color": "blue"
+        }
+    ])
+    
+    # 2. Resumen
+    rb.add_text(
+        f"Al cierre de **{periodo_label}**, la población activa calculada para **{uo_value or 'la organización'}** es de **{total_hc:,} colaboradores** (excluyendo practicantes).",
+        variant="insight"
+    )
+    
+    # 3. Desglose en Tabla
+    table_data = df.to_dict(orient='records')
+    rb.add_table(table_data)
+    
+    # 4. Gráfico de Distribución
+    chart_data = [
+        {"label": str(row['unidad']), "value": int(row['hc'])}
+        for _, row in df.iterrows()
+    ]
+    rb.add_distribution_chart(
+        data=chart_data,
+        title=f"Distribución de Headcount por {child_level.upper()}",
+        chart_type="bar",
+        x_label=child_level.upper(),
+        y_label="Colaboradores"
+    )
+    
+    rb.add_debug_sql(query)
     return rb.to_dict()

@@ -2,106 +2,193 @@ import json
 from typing import Dict, Any
 from app.ai.utils.response_builder import ResponseBuilder
 
-def get_turnover_deep_dive(dimension: str = "uo2", periodo_inicio: str = "2025-01-01", periodo_fin: str = "2025-12-31", tipo_rotacion: str = "GENERAL") -> Dict[str, Any]:
+def get_turnover_deep_dive(
+    parent_level: str = "UO2", 
+    parent_value: str = "TOTAL", 
+    periodo: str = "2025", 
+    tipo_rotacion: str = "GENERAL",
+    **kwargs
+) -> Dict[str, Any]:
     """
-    Realiza un análisis profundo de rotación (Deep Dive) cruzando dimensiones organizacionales.
-    Retorna un VisualDataPackage con KPIs, Gráficos e Insight Ejecutivo.
+    Realiza un análisis profundo de rotación (Hotspots) comparando sub-unidades contra su padre.
+    
+    Args:
+        parent_level: 'UO2' (División), 'UO3' (Área) o 'UO4'.
+        parent_value: Nombre de la unidad padre (ej: 'DIVISION FINANZAS'). 
+        periodo: 'YYYY', 'YYYY-MM' o 'YYYY-QX'.
+        tipo_rotacion: 'GENERAL' o 'VOLUNTARIA'.
     """
-    # Inicializar builder al principio para capturar debugs o errores tempranos
-    builder = ResponseBuilder()
-
-    # Simulación de Lógica de Negocio (Mock Data based on Ground Truth Docs)
-    # En producción, esto sería una query compleja a BigQuery
+    from app.services.bigquery import get_bq_service
+    from app.core.config import get_settings
     from app.ai.tools.bq_queries.financial_parameters import (
         AVG_ANNUAL_SALARY_USD, RECRUITMENT_COST_PCT, TRAINING_COST_USD,
         RAMP_UP_MONTHS, RAMP_UP_PRODUCTIVITY_FACTOR, SEVERANCE_AVG_USD
     )
-    
-    # 1. Datos Simulados (Mock)
-    current_rate = "45.06%" # Del caso de uso Transformación
-    avg_company = "37.21%"
-    total_leavers = 676
-    
-    # --- CÁLCULO DE IMPACTO FINANCIERO DINÁMICO (Hybrid BQ + Config) ---
-    
-    # Intentar cargar parámetros desde BigQuery (Producción)
-    params = {}
-    try:
-        from app.services.bigquery import get_bq_service
-        bq = get_bq_service()
-        # TODO: Mover el ID del proyecto/dataset a variables de entorno si cambia
-        query = "SELECT param_key, param_value FROM `adk-team-fitness.data_set_historico_ceses.config_financial_params`"
-        df_params = bq.execute_query(query)
-        
-        # Convertir a diccionario
-        if not df_params.empty:
-            params = dict(zip(df_params['param_key'], df_params['param_value']))
-            # Debug SQL en el response builder si es necesario
-            builder.add_debug_sql(query)
-            
-    except Exception as e:
-        print(f"[WARN] Falló carga de parámetros financieros BQ: {e}. Usando fallback local.")
-    
-    # Obtener valores con fallback a constantes locales (File Config)
-    salary_usd = params.get('AVG_ANNUAL_SALARY_USD', AVG_ANNUAL_SALARY_USD)
-    rec_cost_pct = params.get('RECRUITMENT_COST_PCT', RECRUITMENT_COST_PCT)
-    training_cost = params.get('TRAINING_COST_USD', TRAINING_COST_USD)
-    ramp_months = params.get('RAMP_UP_MONTHS', RAMP_UP_MONTHS)
-    ramp_factor = params.get('RAMP_UP_PRODUCTIVITY_FACTOR', RAMP_UP_PRODUCTIVITY_FACTOR)
-    severance = params.get('SEVERANCE_AVG_USD', SEVERANCE_AVG_USD)
+    import pandas as pd
 
-    # Costo Reemplazo
-    cost_replacement = salary_usd * rec_cost_pct
+    settings = get_settings()
+    bq_service = get_bq_service()
+    builder = ResponseBuilder()
+    table_id = f"{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}"
+
+    # 1. Determinar Niveles
+    level_map = {"UO2": ("uo2", "UO3"), "UO3": ("uo3", "UO4"), "UO4": ("uo4", "UO5")}
+    parent_col, child_level_key = level_map.get(parent_level.upper(), ("uo2", "UO3"))
+    child_col, _ = level_map.get(child_level_key, ("uo3", "UO4"))
+
+    # 2. Configurar Filtros
+    type_filter = "AND LOWER(motivo_cese) LIKE '%renuncia%'" if tipo_rotacion.upper() == "VOLUNTARIA" else ""
     
-    # Costo Productividad
-    monthly_salary = salary_usd / 12
-    cost_productivity = monthly_salary * ramp_months * (1 - ramp_factor)
+    # 2. Configurar Filtros de Fecha (Soporte para Año, Mes o Trimestre)
+    def parse_periodo(p: str):
+        # Trimestre (ej. "2025-Q1")
+        if "-Q" in p.upper():
+            year_str, q_str = p.upper().split("-Q")
+            year = int(year_str)
+            q_map = {
+                "1": (1, 3), "2": (4, 6), "3": (7, 9), "4": (10, 12)
+            }
+            m_start, m_end = q_map.get(q_str, (1, 3))
+            f_hc = f"EXTRACT(YEAR FROM fecha_corte) = {year} AND EXTRACT(MONTH FROM fecha_corte) = {m_start}"
+            f_ceses = f"EXTRACT(YEAR FROM fecha_cese) = {year} AND EXTRACT(MONTH FROM fecha_cese) BETWEEN {m_start} AND {m_end}"
+            label = f"Q{q_str} {year}"
+            return f_hc, f_ceses, label
+
+        # Mes específico (ej. "2025-12")
+        elif len(p) == 7 and "-" in p:
+            year, month = p.split("-")
+            f_hc = f"EXTRACT(YEAR FROM fecha_corte) = {int(year)} AND EXTRACT(MONTH FROM fecha_corte) = {int(month)}"
+            f_ceses = f"EXTRACT(YEAR FROM fecha_cese) = {int(year)} AND EXTRACT(MONTH FROM fecha_cese) = {int(month)}"
+            return f_hc, f_ceses, p
+        
+        # Año completo (ej. "2025")
+        else:
+            year_val = int(p[:4])
+            f_hc = f"EXTRACT(YEAR FROM fecha_corte) = {year_val} AND EXTRACT(MONTH FROM fecha_corte) = 1"
+            f_ceses = f"EXTRACT(YEAR FROM fecha_cese) = {year_val}"
+            return f_hc, f_ceses, str(year_val)
+
+    date_filter_hc, date_filter_ceses, periodo_label = parse_periodo(periodo)
     
-    # Costo Unitario por Salida
-    cost_per_leaver = cost_replacement + training_cost + cost_productivity + severance
+    dim_filter = f"AND LOWER({parent_col}) LIKE '%{parent_value.lower()}%'" if parent_value.upper() not in ["TOTAL", "GENERAL"] else ""
+
+    # 3. Query de Hotspots (Detección de puntos críticos)
+    query = f"""
+    WITH 
+    TotalBase AS (
+        SELECT 
+            COUNT(DISTINCT codigo_persona) as hc_inicial
+        FROM `{table_id}`
+        WHERE {date_filter_hc} AND estado = 'Activo' {dim_filter}
+    ),
+    TotalCeses AS (
+        SELECT 
+            COUNT(*) as ceses
+        FROM `{table_id}`
+        WHERE {date_filter_ceses}
+        {dim_filter} {type_filter}
+    ),
+    Benchmark AS (
+        SELECT SAFE_DIVIDE(c.ceses, NULLIF(b.hc_inicial, 0)) as tasa_parent
+        FROM TotalCeses c, TotalBase b
+    ),
+    SubUnitsData AS (
+        SELECT 
+            {child_col} as unidad,
+            COUNT(DISTINCT codigo_persona) as hc_child
+        FROM `{table_id}`
+        WHERE {date_filter_hc} AND estado = 'Activo' {dim_filter}
+        GROUP BY 1
+    ),
+    SubUnitsCeses AS (
+        SELECT 
+            {child_col} as unidad,
+            COUNT(*) as ceses_child
+        FROM `{table_id}`
+        WHERE {date_filter_ceses}
+        {dim_filter} {type_filter}
+        GROUP BY 1
+    )
+    SELECT 
+        s.unidad,
+        s.hc_child,
+        COALESCE(c.ceses_child, 0) as ceses_child,
+        SAFE_DIVIDE(COALESCE(c.ceses_child, 0), NULLIF(s.hc_child, 0)) as tasa_child,
+        b.tasa_parent
+    FROM SubUnitsData s
+    LEFT JOIN SubUnitsCeses c ON s.unidad = c.unidad
+    CROSS JOIN Benchmark b
+    WHERE s.unidad IS NOT NULL
+    ORDER BY tasa_child DESC
+    """
+
+    df = bq_service.execute_query(query)
+    if df.empty:
+        builder.add_text(f"No se encontró estructura organizacional para profundizar en {parent_value}.")
+        return builder.to_dict()
+
+    # 4. Cálculos Financieros y Hotspots
+    tasa_parent = df['tasa_parent'].iloc[0] if not df.empty else 0
+    hotspots = df[df['tasa_child'] > tasa_parent].copy()
+    total_ceses = df['ceses_child'].sum()
+
+    # Costo por salida
+    cost_per_leaver = (AVG_ANNUAL_SALARY_USD * RECRUITMENT_COST_PCT) + TRAINING_COST_USD + \
+                      (AVG_ANNUAL_SALARY_USD / 12 * RAMP_UP_MONTHS * (1 - RAMP_UP_PRODUCTIVITY_FACTOR)) + SEVERANCE_AVG_USD
     
-    # Impacto Total (Ejemplo con 676 leavers)
-    total_impact_usd = cost_per_leaver * total_leavers
-    
-    # Formatear a millones (ej: $1.2M)
-    impact_formatted = f"${total_impact_usd / 1_000_000:.1f}M"
-    
-    # 2. Generación de Insight Ejecutivo
-    insight_text = (
-        f"Se observa un incremento crítico en la rotación de la división {dimension} ({current_rate}), "
-        f"superando el promedio general ({avg_company}). "
-        f"Con {total_leavers} salidas, estimamos un **impacto financiero anual de {impact_formatted}**, "
-        f"basado en parámetros actualizados de negocio (Salario Base: ${salary_usd:,.0f})."
+    total_impact_usd = total_ceses * cost_per_leaver
+
+    # 5. Construir Respuesta
+    severity = "critical" if tasa_parent > 0.3 else "warning"
+    insight = (
+        f"Análisis organizacional de **{parent_value}** ({periodo_label}). "
+        f"La tasa promedio de la unidad es **{tasa_parent:.2%}**. "
+        f"Se identificaron **{len(hotspots)} áreas críticas** con rotación por encima del promedio divisional. "
+        f"El impacto financiero estimado de estas salidas es de **${total_impact_usd / 1_000_000:.1f}M USD**."
     )
     
-    severity = "critical" if float(current_rate.replace("%", "")) > 30 else "warning"
-
-    # Bloque 1: Insight Ejecutivo
-    builder.add_insight_alert(insight_text, severity=severity)
+    builder.add_insight_alert(insight, severity=severity)
     
-    # Bloque 2: KPIs
+    # KPIs
     builder.add_kpi_row([
-        {"label": "Rotación 2025", "value": current_rate, "delta": "+15% vs 2024", "color": "inverse"},
-        {"label": "Ceses Voluntarios", "value": str(total_leavers), "delta": "Renuncias", "color": "normal"},
-        {"label": "Costo de Rotación", "value": impact_formatted, "delta": "B.Q. Live", "color": "inverse"}
+        {"label": f"Tasa {parent_value}", "value": f"{tasa_parent:.2%}", "color": "inverse"},
+        {"label": "Áreas Críticas", "value": str(len(hotspots)), "color": "red" if len(hotspots) > 0 else "green"},
+        {"label": "Impacto Económico", "value": f"${total_impact_usd/1e6:.1f}M", "color": "inverse"}
     ])
-    
-    # Bloque 3: Gráfico de Tendencia
-    # Bloque 3: Visualización Interactiva
-    months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-    gen_rate = [2.1, 2.5, 3.0, 5.2, 4.8, 3.5, 4.0, 4.2, 3.8, 3.9, 3.5, 4.5]
-    vol_rate = [1.8, 2.0, 2.5, 4.5, 4.0, 3.0, 3.5, 3.8, 3.2, 3.5, 3.0, 4.0] # Mock data voluntaria
-    
-    data_series = {
-        "months": months,
-        "rotacion_general": gen_rate,
-        "rotacion_voluntaria": vol_rate,
-        # Mocking extra data for the table view
-        "headcount": [1500] * 12,
-        "ceses": [int(x*15) for x in gen_rate],
-        "renuncias": [int(x*15) for x in vol_rate]
-    }
-    
-    builder.add_data_series(data_series, metadata={"year": "2025", "segment": dimension})
-    
+
+    # Gráfico de Hotspots
+    chart_data = []
+    # Mostramos los top 10 o todos si son menos
+    display_df = df.head(10)
+    for _, row in display_df.iterrows():
+        is_hot = " (CRÍTICO)" if row['tasa_child'] > row['tasa_parent'] else ""
+        chart_data.append({
+            "label": f"{row['unidad']}{is_hot}",
+            "value": round(row['tasa_child'] * 100, 2),
+            "benchmark": round(row['tasa_parent'] * 100, 2),
+            "hc": int(row['hc_child']),
+            "ceses": int(row['ceses_child'])
+        })
+
+    builder.add_distribution_chart(
+        chart_data, 
+        title=f"Desglose por {child_level_key} en {parent_value}",
+        chart_type="bar_chart",
+        x_label=child_level_key,
+        y_label="% Rotación"
+    )
+
+    # 5.4 Tabla de Datos (Visible para el Agente y opcional para UI)
+    table_data = [
+        {
+            "Unidad": row['unidad'],
+            "Headcount (Base)": int(row['hc_child']),
+            "Ceses": int(row['ceses_child']),
+            "Tasa %": f"{row['tasa_child']:.2%}"
+        }
+        for _, row in df.iterrows()
+    ]
+    builder.add_table(table_data)
+
+    builder.add_debug_sql(query)
     return builder.to_dict()

@@ -63,5 +63,30 @@ Este documento recopila los desafíos técnicos enfrentados, los errores crític
     *   **Parsing Estructural:** Los tests que consumen Tools directamente deben navegar la estructura `visual_package` (`content` -> `payload`/`data` -> `kpi_row`) para extraer el dato crudo (Ground Truth).
     *   **Debug Dump:** Imprimir el JSON completo de la tool cuando falla la extracción ahorra horas de adivinanza.
 
+### 8. Visualización Adaptativa (Frontend vs Backend)
+*   **Problema:** El Agente generaba gráficos pero el frontend no los mostraba o los mostraba vacíos por falta de metadatos o nombres de columnas inconsistentes.
+*   **Solución:** Estandarización mediante `ResponseBuilder`. Las herramientas de BI ahora emiten un esquema `plot` genérico (`x`, `y`, `x_label`, `y_label`) que abstrae si es Barras o Pie, asegurando que el frontend siempre tenga nombres de ejes legibles.
+
+### 9. El Patrón "Zoom Temporal" (HU-007)
+*   **Problema:** Mostrar siempre 12 meses de datos dificultaba el análisis enfocado (ej. último trimestre), creando "ruido visual" y KPIs anualizados irrelevantes para cierres mensuales.
+*   **Solución:** Lógica de filtrado en el backend (Python) post-query. Traer el año completo asegura eficiencia (cache) pero el filtrado dinámico recalcula promedios, máximos y mínimos solo para el rango solicitado, devolviendo una serie de datos "quirúrgica".
+
+### 10. Robustez contra Alucinación de Parámetros (Fix Error 500)
+*   **Problema:** Un Error 500 crítico ocurría cuando el Agente intentaba cruzar filtros (ej. Talento + División) que no estaban definidos en la firma de la función. El modelo "hallucinaba" argumentos inexistentes, lanzando un `TypeError` fatal.
+*   **Solución:** Implementación del patrón **`**kwargs`** en todas las herramientas del Agente. Esto permite que el sistema ignore silenciosamente cualquier parámetro extra que el modelo intente inyectar, manteniendo la estabilidad del servicio mientras se detecta la necesidad de una nueva funcionalidad.
+
+### 11. Cruce Analítico (Feature Gaps vs Tech Errors)
+*   **Aprendizaje:** Una pregunta de negocio compleja (ej. "Distribución de Hipos por División") a menudo revela la necesidad de cruces de datos que antes eran independientes.
+*   **Acción:** La HU-008 resolvió esto al integrar el filtro de talento en las herramientas de distribución, convirtiendo un "error técnico" fortuito en una nueva capacidad analítica de alto valor.
+
+### 12. Interpretación de Periodos de Negocio (Business Periods & NL)
+*   **Problema:** Al pedir "último trimestre", el Agente por defecto puede tomar solo el último mes si la tool no tiene soporte explícito para rangos.
+*   **Diagnóstico:** Falta de alineación entre la capacidad de "razonamiento" del modelo y la firma estricta de la función de la Tool.
+*   **Solución:** 
+    1.  **Parsing Robusto:** Implementar funciones de parsing de fechas (`parse_periodo`) que soporten formatos de negocio (`Q1`, `Q2`, etc.).
+    2.  **Prompt Habilitador:** Instruir al Agente explícitamente sobre cómo mapear lenguaje natural ("último trimestre") a estos formatos técnicos.
+    3.  **Benchmark de Rangos:** Asegurar que la lógica SQL agregue correctamente datos de múltiples meses sin corromper el cálculo de tasas (HC inicial del periodo vs Ceses acumulados).
+
 ---
+**Ultima Actualización:** 30 de Enero, 2026 - Sesión: Soporte Trimestral y Cierre HU-009.
 **Autores:** Equipo de Desarrollo ADK & Antigravity (IA)

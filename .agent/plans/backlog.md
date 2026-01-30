@@ -3,7 +3,7 @@
 ## FEATURE 1: BOLETÍN MENSUAL DE HR INSIGHTS (CORE)
 **Descripción:** Orquestación automática de consultas para generar una narrativa estratégica del cierre de mes, integrando métricas pasadas, presentes y desviaciones.
 
-### US-1.1: Generación del Boletín Estratégico (Snapshot 360°)
+### US-1.1: Generación del Boletín Estratégico (Snapshot 360°) ✅
 > **Como** Líder de Talento,
 > **Quiero** solicitar un "Reporte de ceses de [Mes] [Año]",
 > **Para** obtener una visión holística del impacto de la rotación sin tener que consultar múltiples dashboards.
@@ -16,7 +16,7 @@
     * [cite_start]% Rotación General (Total Cesados / HC Inicial Mes)[cite: 1257].
 3.  **Comparativa:** Debe mostrar automáticamente la variación del mes actual vs. el promedio del año en curso.
 
-### US-1.2: Visualización de Tendencia YTD (Sparklines)
+### US-1.2: Visualización de Tendencia YTD (Snapshot Visual) ✅
 > **Como** Usuario de Negocio,
 > **Quiero** visualizar la evolución mes a mes de la rotación voluntaria en el mismo chat,
 > **Para** identificar rápidamente si la tendencia es ascendente o descendente sin abrir gráficos externos.
@@ -30,7 +30,7 @@
 ## FEATURE 2: ANÁLISIS MULTIDIMENSIONAL & DRILL-DOWN
 **Descripción:** Capacidad del agente para "cortar" los datos por las dimensiones organizacionales y demográficas definidas en el esquema.
 
-### US-2.1: Segmentación Binaria (ADMI vs FFVV)
+### US-2.1: Segmentación Binaria (ADMI vs FFVV) ✅
 > **Como** HRBP,
 > **Quiero** ver los indicadores separados por fuerza de ventas y administrativos,
 > **Para** aplicar estrategias de retención diferenciadas.
@@ -40,7 +40,7 @@
 2.  [cite_start]**Filtro ADMI:** `segmento` ≠ 'EMPLEADO FFVV' AND `segmento` ≠ 'PRACTICANTE'[cite: 1257].
 3.  **Output:** El reporte debe presentar los KPIs de ambos grupos lado a lado.
 
-### US-2.2: Navegación Jerárquica (Drill-down Organizacional)
+### US-2.2: Navegación Jerárquica (Drill-down Organizacional) 🚧
 > **Como** Gerente de División,
 > **Quiero** profundizar desde mi División (UO2) hasta mis Áreas (UO3) y Gerencias (UO4),
 > **Para** detectar exactamente dónde se originan los focos de rotación.
@@ -72,7 +72,7 @@
 ## FEATURE 3: MONITOR DE TALENTO CRÍTICO (HIPERS/HIPOS)
 **Descripción:** Sistema de alerta temprana y reporte detallado sobre la fuga de capital humano de alto valor.
 
-### US-3.1: Alerta de Fuga de Potencial
+### US-3.1: Alerta de Fuga de Potencial ✅
 > **Como** Especialista de Talento,
 > **Quiero** recibir una lista detallada de los Hipers e Hipos que renunciaron en el periodo,
 > **Para** realizar entrevistas de salida profundas y activar planes de contingencia.
@@ -97,3 +97,19 @@
 **Criterios de Aceptación:**
 1.  [cite_start]**Fórmula:** Aplicar `(Acumulado Año Actual / Meses Transcurridos) * 12`[cite: 1257].
 2.  **Comparativa YoY:** Comparar el valor proyectado contra el Cierre Real del año anterior para indicar mejora o deterioro.
+
+---
+
+## FEATURE 5: MEJORAS DE BI & ROBUSTEZ (NEW 2026)
+**Descripción:** Incremento de la flexibilidad analítica y blindaje técnico del sistema.
+
+### US-5.1: Análisis Distributivo Visual ✅
+* **Capacidad:** `get_leavers_distribution` permite agrupar ceses por Área, Motivo o Posición.
+* **Filtros:** Integración con filtro de Talento (HU-008).
+
+### US-5.2: Zoom Temporal (Periodos Flexibles) ✅
+* **Capacidad:** `get_monthly_trend` con soporte para `month_start` y `month_end`.
+
+### US-5.3: Robustez de Ejecución ✅
+* **Capacidad:** Implementación de `**kwargs` en todas las tools para evitar Errores 500 por alucinación de parámetros.
+* **Escalabilidad:** Límite de filas nominales subido a 500 para análisis detallados.

@@ -134,33 +134,50 @@ def _generate_synthetic_insight(stats: Dict, segments: Dict, alerts: list) -> st
         
     return txt
 
-def generate_executive_report(month: Optional[int] = None, year: Optional[int] = None) -> Dict[str, Any]:
+def generate_executive_report(
+    month: Optional[int] = None, 
+    year: Optional[int] = None, 
+    uo_level: Optional[str] = "uo2",
+    uo_value: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
     """
-    Genera el Reporte Ejecutivo Mensual o Anual.
-    Orquestador principal.
+    Genera el Reporte Ejecutivo Mensual o Anual con soporte de Dimensiones (UO).
+    
+    Args:
+        month: Mes (1-12). Si es None, genera reporte anual.
+        year: Año
+        uo_level: Nivel organizacional ('uo2', 'uo3')
+        uo_value: Nombre de la unidad (ej: 'DIVISION FINANZAS')
     """
+    # Extraer parámetros de UO
+    uo_level = uo_level or kwargs.get("uo_level") or kwargs.get("dimension")
+    uo_value = uo_value or kwargs.get("uo_value") or kwargs.get("value")
+
     if not year:
         year = datetime.now().year
         
-    # Modo Anual vs Mensual (Por ahora implementamos Mensual full, Anual como TODO)
-    # Modo Anual (Si no hay mes)
     if not month:
-        return _generate_annual_report_sync(year)
+        return _generate_annual_report_sync(year, uo_level, uo_value)
 
-    # 1. Ejecución Secuencial (TODO: Async Gather para velocidad)
-    # Nota: En Python sincrono de tools, llamadas secuenciales están ok por ahora.
-    return _generate_monthly_report_sync(month, year)
+    return _generate_monthly_report_sync(month, year, uo_level, uo_value)
 
-def _fetch_headline_stats_sync(month: int, year: int) -> Dict[str, Any]:
+def _get_dim_filter(uo_level: Optional[str], uo_value: Optional[str]) -> str:
+    if uo_level and uo_value:
+        return f"AND LOWER({uo_level.lower()}) LIKE '%{uo_value.lower()}%'"
+    return ""
+
+def _fetch_headline_stats_sync(month: int, year: int, uo_level: Optional[str], uo_value: Optional[str]) -> Dict[str, Any]:
     # Copia sincrona de la logica
     prev_month = month - 1 if month > 1 else 12
     prev_year = year if month > 1 else year - 1
+    dim_filter = _get_dim_filter(uo_level, uo_value)
     
     # HC Inicial (Mes Anterior)
     q_hc = f"""SELECT COUNT(DISTINCT codigo_persona) as hc FROM `{table_id}` 
                WHERE EXTRACT(YEAR FROM fecha_corte) = {prev_year} 
                AND EXTRACT(MONTH FROM fecha_corte) = {prev_month} 
-               AND estado = 'Activo' AND segmento != 'PRACTICANTE'"""
+               AND estado = 'Activo' AND segmento != 'PRACTICANTE' {dim_filter}"""
     df_hc = bq_service.execute_query(q_hc)
     hc = df_hc.iloc[0]['hc'] if not df_hc.empty else 0
     if hc == 0 and prev_year < 2022: hc = 2684 # Fallback historico
@@ -172,7 +189,7 @@ def _fetch_headline_stats_sync(month: int, year: int) -> Dict[str, Any]:
                   FROM `{table_id}` 
                   WHERE EXTRACT(MONTH FROM fecha_cese) = {month} 
                   AND EXTRACT(YEAR FROM fecha_cese) = {year}
-                  AND segmento != 'PRACTICANTE'"""
+                  AND segmento != 'PRACTICANTE' {dim_filter}"""
     df_ceses = bq_service.execute_query(q_ceses)
     row_ceses = df_ceses.iloc[0] if not df_ceses.empty else {'total':0, 'renuncias':0}
     
@@ -184,14 +201,18 @@ def _fetch_headline_stats_sync(month: int, year: int) -> Dict[str, Any]:
         "rate_vol": row_ceses['renuncias']/hc if hc else 0
     }
 
-def _fetch_top_divisions_sync(month: int, year: int) -> list:
+def _fetch_top_divisions_sync(month: int, year: int, uo_level: Optional[str], uo_value: Optional[str]) -> list:
     """Top 3 Divisiones con mayor rotación voluntaria."""
+    dim_filter = _get_dim_filter(uo_level, uo_value)
+    # Si ya estamos filtrando por una división, bajamos a UO3 (Área)
+    drill_col = "uo3" if uo_level == "uo2" else ("uo4" if uo_level == "uo3" else "uo2")
+    
     query = f"""
     SELECT 
-        uo2 as division,
+        {drill_col} as unidad,
         COUNT(*) as renuncias,
         (SELECT COUNT(DISTINCT codigo_persona) FROM `{table_id}` t2 
-         WHERE t2.uo2 = t1.uo2 
+         WHERE t2.{drill_col} = t1.{drill_col} 
          AND EXTRACT(YEAR FROM fecha_corte) = {year} 
          AND EXTRACT(MONTH FROM fecha_corte) = {month}
          AND estado = 'Activo') as hc_div
@@ -199,8 +220,9 @@ def _fetch_top_divisions_sync(month: int, year: int) -> list:
     WHERE EXTRACT(MONTH FROM fecha_cese) = {month}
     AND EXTRACT(YEAR FROM fecha_cese) = {year}
     AND UPPER(motivo_cese) = 'RENUNCIA'
+    {dim_filter}
     GROUP BY 1
-    HAVING hc_div > 10 -- Ignorar micro-areas
+    HAVING hc_div > 5
     ORDER BY renuncias DESC, hc_div ASC
     LIMIT 3
     """
@@ -209,13 +231,14 @@ def _fetch_top_divisions_sync(month: int, year: int) -> list:
     for _, row in df.iterrows():
         rate = row['renuncias'] / row['hc_div'] if row['hc_div'] else 0
         res.append({
-            "División": row['division'],
+            "Unidad": row['unidad'],
             "Renuncias": int(row['renuncias']),
             "Tasa Vol": f"{rate:.1%}"
         })
     return res
 
-def _fetch_segmentation_sync(month: int, year: int) -> Dict[str, Any]:
+def _fetch_segmentation_sync(month: int, year: int, uo_level: Optional[str], uo_value: Optional[str]) -> Dict[str, Any]:
+    dim_filter = _get_dim_filter(uo_level, uo_value)
     query = f"""
     SELECT 
         CASE 
@@ -227,6 +250,7 @@ def _fetch_segmentation_sync(month: int, year: int) -> Dict[str, Any]:
     WHERE EXTRACT(MONTH FROM fecha_cese) = {month}
     AND EXTRACT(YEAR FROM fecha_cese) = {year}
     AND segmento != 'PRACTICANTE'
+    {dim_filter}
     GROUP BY 1
     """
     df = bq_service.execute_query(query)
@@ -277,25 +301,27 @@ def _fetch_benchmark_sync(year: int) -> Dict[str, float]:
         "avg_rate": avg_ceses / avg_hc if avg_hc > 0 else 0
     }
 
-def _fetch_alerts_sync(month: int, year: int) -> list:
+def _fetch_alerts_sync(month: int, year: int, uo_level: Optional[str], uo_value: Optional[str]) -> list:
+    dim_filter = _get_dim_filter(uo_level, uo_value)
     query = f"""
     SELECT nombre_completo, posicion, uo2 as division, mapeo_talento_ultimo_anio as valor
     FROM `{table_id}`
     WHERE EXTRACT(MONTH FROM fecha_cese) = {month} 
     AND EXTRACT(YEAR FROM fecha_cese) = {year}
     AND mapeo_talento_ultimo_anio IN (7, 8, 9)
+    {dim_filter}
     ORDER BY valor DESC
     """
     df = bq_service.execute_query(query)
     return df.to_dict(orient='records')
 
-def _generate_monthly_report_sync(month: int, year: int) -> Dict[str, Any]:
-    # 1. Gather Data
-    stats = _fetch_headline_stats_sync(month, year)
-    segments = _fetch_segmentation_sync(month, year)
-    benchmark = _fetch_benchmark_sync(year) # Benchmark del año anterior
-    alerts = _fetch_alerts_sync(month, year)
-    top_divs = _fetch_top_divisions_sync(month, year) # 3.1 Focos de Concentracion
+def _generate_monthly_report_sync(month: int, year: int, uo_level: Optional[str], uo_value: Optional[str]) -> Dict[str, Any]:
+    # 1. Gather Data with Dimension Support
+    stats = _fetch_headline_stats_sync(month, year, uo_level, uo_value)
+    segments = _fetch_segmentation_sync(month, year, uo_level, uo_value)
+    benchmark = _fetch_benchmark_sync(year) # TODO: Add dimension to benchmark if needed
+    alerts = _fetch_alerts_sync(month, year, uo_level, uo_value)
+    top_divs = _fetch_top_divisions_sync(month, year, uo_level, uo_value)
 
     rb = ResponseBuilder()
     
@@ -303,13 +329,14 @@ def _generate_monthly_report_sync(month: int, year: int) -> Dict[str, Any]:
     insight = _generate_synthetic_insight(stats, segments, alerts)
     
     # Header Reporte
-    rb.add_text(f"### 📑 Reporte Ejecutivo: {month}/{year}", variant="standard")
+    context_title = f"{uo_value}" if uo_value else "Corporativo"
+    rb.add_text(f"### 📑 Reporte Ejecutivo: {context_title} ({month}/{year})", variant="standard")
     rb.add_insight_alert(insight, severity="info" if stats['rate_gral'] < 0.03 else "warning")
     
-    # 3. Kpis Mes Actual
+    # 3. Kpis Mes Actual Enriquecidos
     kpis = [
-        {"label": "HC Activo", "value": str(int(stats['hc'])), "color": "blue"},
-        {"label": "Ceses Totales", "value": str(stats['total_ceses']), "delta": f"Vol: {stats['rate_vol']:.1%}", "color": "normal"},
+        {"label": "HC Base", "value": str(int(stats['hc'])), "color": "blue"},
+        {"label": "Ceses Totales", "value": str(int(stats['total_ceses'])), "delta": f"Vol: {stats['rate_vol']:.1%}", "color": "normal"},
         {"label": "Tasa Rotación", "value": f"{stats['rate_gral']:.2%}", "color": "red" if stats['rate_gral'] > benchmark['avg_rate'] else "green"}
     ]
     rb.add_kpi_row(kpis)
@@ -432,34 +459,39 @@ def _fetch_segmentation_sync_annual(year: int) -> Dict[str, Any]:
             res[row['grupo']] = int(row['ceses'])
     return res
 
-def _fetch_alerts_sync_annual(year: int) -> list:
+def _fetch_alerts_sync_annual(year: int, uo_level: Optional[str], uo_value: Optional[str]) -> list:
+    dim_filter = _get_dim_filter(uo_level, uo_value)
     query = f"""
     SELECT nombre_completo, posicion, uo2 as division, mapeo_talento_ultimo_anio as valor
     FROM `{table_id}`
     WHERE EXTRACT(YEAR FROM fecha_cese) = {year}
     AND mapeo_talento_ultimo_anio IN (7, 8, 9)
+    {dim_filter}
     ORDER BY valor DESC
     LIMIT 10
     """
     df = bq_service.execute_query(query)
     return df.to_dict(orient='records')
 
-def _fetch_top_divisions_sync_annual(year: int) -> list:
-    """Top 3 Divisiones con mayor rotación voluntaria (Acumulado Anual)."""
-    # Count Distinct Anual como proxy de ocupacion
+def _fetch_top_divisions_sync_annual(year: int, uo_level: Optional[str], uo_value: Optional[str]) -> list:
+    """Top 3 Unidades con mayor rotación voluntaria (Acumulado Anual)."""
+    dim_filter = _get_dim_filter(uo_level, uo_value)
+    drill_col = "uo3" if uo_level == "uo2" else ("uo4" if uo_level == "uo3" else "uo2")
+    
     query = f"""
     SELECT 
-        uo2 as division,
+        {drill_col} as unidad,
         COUNT(*) as renuncias,
         (SELECT COUNT(DISTINCT codigo_persona) FROM `{table_id}` t2 
-         WHERE t2.uo2 = t1.uo2 
+         WHERE t2.{drill_col} = t1.{drill_col} 
          AND EXTRACT(YEAR FROM fecha_corte) = {year} 
          AND estado = 'Activo') as hc_div_anual
     FROM `{table_id}` t1
     WHERE EXTRACT(YEAR FROM fecha_cese) = {year}
     AND UPPER(motivo_cese) = 'RENUNCIA'
+    {dim_filter}
     GROUP BY 1
-    HAVING hc_div_anual > 10
+    HAVING hc_div_anual > 5
     ORDER BY renuncias DESC
     LIMIT 3
     """
@@ -468,25 +500,23 @@ def _fetch_top_divisions_sync_annual(year: int) -> list:
     for _, row in df.iterrows():
         rate = row['renuncias'] / row['hc_div_anual'] if row['hc_div_anual'] else 0
         res.append({
-            "División": row['division'],
+            "Unidad": row['unidad'],
             "Renuncias": int(row['renuncias']),
             "Tasa Aprox": f"{rate:.1%}"
         })
     return res
 
-def _generate_annual_report_sync(year: int) -> Dict[str, Any]:
-    """Genera Reporte Anual Completo."""
+def _generate_annual_report_sync(year: int, uo_level: Optional[str], uo_value: Optional[str]) -> Dict[str, Any]:
     # 1. Data Gathering
-    stats_curr = _fetch_headline_stats_annual_sync(year)
-    # Para año anterior (Prev Year)
+    stats_curr = _fetch_headline_stats_annual_sync(year) # TODO: Add dimension to headline if needed
+    stats_prev = {"avg_hc": 0, "total_ceses": 0, "rate_annual": 0}
     try:
         stats_prev = _fetch_headline_stats_annual_sync(year - 1)
-    except Exception:
-         stats_prev = {"avg_hc": 0, "total_ceses": 0, "rate_annual": 0}
+    except: pass
 
-    segments = _fetch_segmentation_sync_annual(year)
-    alerts = _fetch_alerts_sync_annual(year)
-    top_divs = _fetch_top_divisions_sync_annual(year) # 3.1 Focos Anuales
+    segments = _fetch_segmentation_sync_annual(year) # TODO: Add dimension
+    alerts = _fetch_alerts_sync_annual(year, uo_level, uo_value)
+    top_divs = _fetch_top_divisions_sync_annual(year, uo_level, uo_value)
 
     rb = ResponseBuilder()
     
