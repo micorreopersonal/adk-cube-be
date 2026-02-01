@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 pydantic-settings
 google-cloud-bigquery
@@ -22,3 +22,7 @@ requests
 
 # BigQuery
 db-dtypes
+
+#Cloud Run
+gunicorn; sys_platform != 'win32'
+uvloop; sys_platform != 'win32'

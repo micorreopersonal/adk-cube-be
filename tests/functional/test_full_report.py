@@ -7,7 +7,7 @@ import time
 # Add parent directory to path to allow imports if needed
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def test_full_report_generation():
     """

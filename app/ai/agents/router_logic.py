@@ -1,6 +1,8 @@
 from google.adk import Runner
 import os
-# from google.adk.sessions.in_memory_session_service import InMemorySessionService (Removed)
+import asyncio
+import time
+import logging
 from google.genai import types, Client
 from app.ai.agents.hr_agent import get_hr_agent
 from app.core.config import get_settings
@@ -13,9 +15,12 @@ class AgentRouter:
     Usa el Runner de ADK para manejar la sesión y la ejecución del agente.
     """
     def __init__(self):
+        settings = get_settings()
         self.session_service = FirestoreADKSessionService() # Integración Firestore real
         self.name = "ADK Router"
-        settings = get_settings()
+        # Configurar logging básico
+        logging.basicConfig(level=settings.LOG_LEVEL)
+        self.logger = logging.getLogger("AgentRouter")
         
         # Cliente explícito para GenAI SDK (Vertex AI Mode)
         self.client = Client(
@@ -61,60 +66,91 @@ class AgentRouter:
         if not await self.session_service.get_session(app_name=app_name, user_id=user_id, session_id=session_id):
             await self.session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
 
-        # 5. Ejecutar
-        response_text = ""
-        last_tool_result = None
+        # 5. Ejecutar con Estrategia de Reintento (Resiliencia ante 429)
+        max_retries = 3
+        retry_delay = 2 # segundos iniciales
         
-        print(f"--- [DEBUG] Starting Runner for session {session_id} ---")
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=new_message
-        ):
-            # print(f"[DEBUG] Event Type: {type(event)}")
-            if event.content and event.content.parts:
-                for part in event.content.parts:
-                    # Investigar estructura real del objeto PART
-                    # print(f"[DEBUG] Part: {part}") 
-                    
-                    if part.text:
-                        print(f"[DEBUG] Part Text: {part.text[:50]}...")
-                        response_text += part.text
-                    
-                    # Robust Tool Capture Strategy
-                    if part.function_response:
-                        print(f"[DEBUG] Function Response detected!")
-                        try:
-                            # Intentar diferentes rutas de acceso según la versión del SDK
-                            if hasattr(part.function_response, 'response'):
-                                res = part.function_response.response
-                                if 'result' in res:
-                                    last_tool_result = res['result']
-                                else:
-                                    last_tool_result = res
-                                print(f"[DEBUG] Captured Tool Result (len={len(str(last_tool_result))})")
-                        except Exception as e:
-                            print(f"[DEBUG] Error capturing tool result: {e}")
-                    
-                    # Fallback: A veces el tool output viene en metadata o propiedades no standard
-                    # Si no detectamos function_response, seguimos buscando...
+        # Variables de telemetría
+        total_api_calls = 0
+        tools_called = []
+        
+        for attempt in range(max_retries):
+            response_text = ""
+            last_tool_result = None
+            turn_count = 0
+            
+            try:
+                self.logger.info(f"--- Starting Runner for session {session_id} (Attempt {attempt+1}/{max_retries}) ---")
+                
+                # Turn counting logic: A turn starts at the beginning of the run 
+                # and after each tool call result is processed.
+                current_turn_counted = False
+                
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=new_message
+                ):
+                    if event.content and event.content.parts:
+                        # If we get content, and we haven't counted this turn yet, count it
+                        if not current_turn_counted:
+                            turn_count += 1
+                            current_turn_counted = True
+                        
+                        for part in event.content.parts:
+                            if part.text:
+                                response_text += part.text
+                            
+                            if part.function_call:
+                                total_api_calls += 1 
+                                tools_called.append(part.function_call.name)
+                                self.logger.info(f"[PROFILER] AI requested tool: {part.function_call.name}")
+                                # After a function call, a new call will follow to process the result
+                                current_turn_counted = False
+
+                            if part.function_response:
+                                try:
+                                    if hasattr(part.function_response, 'response'):
+                                        res = part.function_response.response
+                                        last_tool_result = res.get('result', res)
+                                except Exception as e:
+                                    self.logger.error(f"Error capturing tool result: {e}")
+                
+                self.logger.info(f"[PROFILER] Session {session_id} - Total Model Turns: {turn_count} | Tools: {tools_called}")
+                break
+
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)
+                        self.logger.warning(f"Quota exhausted (429). Retrying in {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        self.logger.error("Max retries reached for 429 error.")
+                        return "Lo siento, la cuota de la API de IA se ha agotado. Por favor, intenta de nuevo en unos minutos."
+                else:
+                    self.logger.error(f"Runner failed: {e}")
+                    raise e
 
         print(f"--- [DEBUG] Final Response Length: {len(response_text)} ---")
         
         # 6. Lógica de Respuesta Prioritaria (VisualDataPackage First)
-        # Si la herramienta devolvió un paquete visual, retornamos eso DIRECTAMENTE.
-        # Ignoramos el texto explicativo del LLM para evitar que "rompa" el JSON o lo resuma.
         if last_tool_result and isinstance(last_tool_result, dict):
             if last_tool_result.get("response_type") == "visual_package":
-                print(f"[DEBUG] VisualPackage detected. Returning tool payload directy.")
+                # Inyectar telemetría para visibilidad en el frontend
+                last_tool_result["telemetry"] = {
+                    "model_turns": turn_count,
+                    "tools_executed": tools_called,
+                    "api_invocations_est": 1 + len(tools_called)
+                }
                 return last_tool_result
 
-        # Fallback Logic: Si no hay paquete visual, devolverse el texto generado o el resultado crudo.
+        # Fallback Logic
         if not response_text and last_tool_result:
-            print("[WARN] Model returned empty text. Using Tool Fallback.")
             return last_tool_result
         
-        # Si el modelo respondió texto (y no hubo visual package), devolvemos el texto
         return response_text or "No se pudo generar una respuesta."
 
 def get_router():

@@ -6,7 +6,7 @@ import time
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def test_persistence_flow():
     """

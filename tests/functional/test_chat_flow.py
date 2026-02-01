@@ -8,7 +8,7 @@ import json
 # Just ensuring script is standalone.
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def test_tool_execution():
     """

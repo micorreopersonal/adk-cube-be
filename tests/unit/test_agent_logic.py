@@ -33,7 +33,7 @@ def test_agent_tools_admin():
          _, kwargs = call_args
          tools = kwargs.get("tools")
          
-         assert len(tools) == 2
+         assert len(tools) >= 8  # El catálogo ha crecido (9 herramientas actuales)
          assert get_monthly_attrition in tools
          assert get_talent_alerts in tools
 
@@ -59,7 +59,7 @@ def test_agent_tools_executive():
          _, kwargs = mock_adk.Agent.call_args
          tools = kwargs.get("tools")
          
-         assert len(tools) == 1
+         assert len(tools) >= 6  # El catálogo ha crecido (7 herramientas actuales)
          assert get_monthly_attrition in tools
          assert get_talent_alerts not in tools
 

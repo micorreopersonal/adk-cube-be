@@ -80,22 +80,33 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
         import re
         import json
         
-        clean_text = response_text.strip()
+        # DEFINICIÓN CRÍTICA: Asegurar que clean_text existe para el regex
+        clean_text = str(response_text)
         
-        # 1. Intentar parsear si el agente respondió con JSON nativo (Visual Schema) dentro de markdown
-        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean_text, re.DOTALL)
+        # 1. Intentar parsear si el agente respondió con JSON nativo (o lo empaquetó en markdown)
+        # Usamos un regex más flexible para capturar el primer objeto JSON encontrado
+        json_match = re.search(r"(\{.*?\})", clean_text, re.DOTALL)
         if json_match:
-            clean_text = json_match.group(1)
-            
-        try:
-            if clean_text.startswith("{"):
-                potential_json = json.loads(clean_text)
-                if "content" in potential_json:
-                    visual_package = potential_json
-                    if "response_type" not in visual_package:
+            try:
+                candidate = json.loads(json_match.group(1))
+                if isinstance(candidate, dict):
+                    # Si tiene 'content', es el formato estándar
+                    if "content" in candidate:
+                        visual_package = candidate
+                    # Si tiene 'visual_package', es el formato detectado en el error (resiliencia)
+                    elif "visual_package" in candidate:
+                        nested = candidate["visual_package"]
+                        builder = ResponseBuilder()
+                        if isinstance(nested, dict):
+                            if "text" in nested: builder.add_text(nested["text"])
+                        elif isinstance(nested, str):
+                            builder.add_text(nested)
+                        visual_package = builder.to_dict()
+                    
+                    if visual_package and "response_type" not in visual_package:
                         visual_package["response_type"] = "visual_package"
-        except json.JSONDecodeError:
-            pass
+            except json.JSONDecodeError:
+                pass
             
         # 2. Fallback: Si no pudimos parsear JSON, envolvemos el texto plano
         if not visual_package:
