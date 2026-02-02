@@ -21,7 +21,9 @@ api_router = APIRouter()
 @api_router.get("/")
 async def root():
     return {
-        "message": "ADK Talent Analytics API is running (SOTA Architecture)",
+        "message": f"ADK Talent Analytics API is running on {settings.PROJECT_ID} (SOTA Architecture)",
+        "project_id": settings.PROJECT_ID,
+        "env": settings.ENV,
         "status": "healthy"
     }
 

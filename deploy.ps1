@@ -1,7 +1,7 @@
 # Script de Despliegue Automatizado para Windows (PowerShell)
 
 # 1. Configuración de Variables
-$PROJECT_ID = "adk-team-fitness"
+$PROJECT_ID = "adk-sandbox-486117"
 $IMAGE_NAME = "gcr.io/$PROJECT_ID/adk-people-analytics-backend:latest"
 $REGION = "us-central1"
 $SERVICE_NAME = "adk-people-analytics-backend"
@@ -29,10 +29,12 @@ gcloud run deploy $SERVICE_NAME `
     --memory 2Gi `
     --timeout 300 `
     --env-vars-file cloud_run_env.yaml `
+    --service-account "adk-agent-runner@$PROJECT_ID.iam.gserviceaccount.com" `
     --project $PROJECT_ID
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n✅ ¡Despliegue Exitoso!" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "`n❌ Error en el despliegue." -ForegroundColor Red
 }

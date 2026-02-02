@@ -27,9 +27,30 @@ def get_leavers_list(
     dimension = uo_value or kwargs.get("uo_value") or kwargs.get("dimension")
     table_id = f"{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}"
     
-    # 1. Filtros de Fecha (Robust Parsing)
+    # 1. Filtros de Fecha (Robust Parsing with Quarter Support)
     date_filter = "TRUE"
-    if "-" in periodo:
+    if "-Q" in periodo.upper():
+        # Formato Quarter: 2025-Q4
+        try:
+            parts = periodo.upper().split("-Q")
+            if len(parts) == 2:
+                anio = int(parts[0])
+                q_num = int(parts[1])
+                
+                # Mapeo Q -> Meses
+                q_map = {
+                    1: (1, 3),   # Ene-Mar
+                    2: (4, 6),   # Abr-Jun
+                    3: (7, 9),   # Jul-Sep
+                    4: (10, 12)  # Oct-Dic
+                }
+                
+                start_m, end_m = q_map.get(q_num, (1, 12))
+                date_filter = f"EXTRACT(YEAR FROM fecha_cese) = {anio} AND EXTRACT(MONTH FROM fecha_cese) BETWEEN {start_m} AND {end_m}"
+        except ValueError:
+            date_filter = "TRUE"
+
+    elif "-" in periodo:
         parts = periodo.split("-")
         if len(parts) == 2:
             p1, p2 = parts[0], parts[1]
@@ -165,8 +186,20 @@ def get_leavers_distribution(
 
     # 2. Configurar Filtros (Reutilizando lógica similar a leavers list)
     # Fecha
+    # Fecha (Robust Parsing with Quarter Support)
     date_filter = "TRUE"
-    if "-" in periodo:
+    if "-Q" in periodo.upper():
+        try:
+            parts = periodo.upper().split("-Q")
+            if len(parts) == 2:
+                anio = int(parts[0])
+                q_num = int(parts[1])
+                q_map = { 1: (1, 3), 2: (4, 6), 3: (7, 9), 4: (10, 12) }
+                start_m, end_m = q_map.get(q_num, (1, 12))
+                date_filter = f"EXTRACT(YEAR FROM fecha_cese) = {anio} AND EXTRACT(MONTH FROM fecha_cese) BETWEEN {start_m} AND {end_m}"
+        except: pass
+
+    elif "-" in periodo:
         parts = periodo.split("-")
         if len(parts) == 2:
             p1, p2 = parts[0], parts[1]

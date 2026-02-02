@@ -114,20 +114,49 @@ async def _fetch_key_talent_alerts(month: int, year: int) -> list:
     df = bq_service.execute_query(query)
     return df.to_dict(orient='records') 
 
-def _generate_synthetic_insight(stats: Dict, segments: Dict, alerts: list) -> str:
+def _generate_synthetic_insight(stats: Dict, segments: Dict, alerts: list, benchmark: Optional[Dict] = None) -> str:
     """
-    TODO: Conectar con LLM Real.
-    Por ahora genera un insight basado en reglas simples.
+    Genera insight con comparativa clara respecto al Benchmark (Promedio Año Anterior).
     """
-    trend = "estable"
-    if stats.get('tasa_gral', 0) > 0.03: trend = "negativa (alza crítica)"
-    elif stats.get('tasa_gral', 0) < 0.01: trend = "positiva (baja)"
+    rate = stats.get('rate_gral', stats.get('tasa_gral', 0))
     
-    focus = "Administrativos" if segments.get('ADMI', 0) > segments.get('FFVV', 0) else "Fuerza de Ventas"
+    # 1. Nivel de Riesgo (Absoluto)
+    nivel = "Estable"
+    if rate > 0.03: nivel = "Crítico (Alto)"
+    elif rate > 0.01: nivel = "Moderado"
+    elif rate > 0.00: nivel = "Bajo"
+    elif rate == 0.00: nivel = "Óptimo"
+
+    # 2. Tendencia vs Benchmark
+    trend_text = ""
+    if benchmark and 'avg_rate' in benchmark:
+        avg_prev = benchmark['avg_rate']
+        diff = rate - avg_prev
+        
+        if abs(diff) < 0.001:
+            trend_desc = "se mantiene en línea"
+        elif diff > 0:
+            trend_desc = "muestra una tendencia al alza"
+        else:
+            trend_desc = "muestra una tendencia a la baja"
+            
+        trend_text = f"{trend_desc} respecto al promedio del año anterior ({avg_prev:.2%})"
+
+    # Determine focus
+    admi = segments.get('ADMI', 0)
+    ffvv = segments.get('FFVV', 0)
+    total_seg = admi + ffvv
+    
+    if total_seg == 0:
+        focus_text = "No hubo impacto en segmentos principales."
+    else:
+        focus = "Administrativos" if admi >= ffvv else "Fuerza de Ventas"
+        count = admi if admi >= ffvv else ffvv
+        focus_text = f"El impacto se concentra mayoritariamente en **{focus}** ({count} salidas)."
     
     txt = (
-        f"La rotación del mes muestra una tendencia **{trend}** con una tasa del {stats.get('tasa_gral', 0):.2%}. "
-        f"El impacto se concentra mayoritariamente en **{focus}** ({segments.get(focus[:4], 0)} salidas). "
+        f"La rotación del mes ({rate:.2%}) presenta un nivel **{nivel}** y {trend_text}. "
+        f"{focus_text} "
     )
     if alerts:
         txt += f"🚨 **Alerta:** Se han detectado {len(alerts)} salidas de talento clave (Hiper/Hipo) que requieren atención inmediata."
@@ -326,7 +355,7 @@ def _generate_monthly_report_sync(month: int, year: int, uo_level: Optional[str]
     rb = ResponseBuilder()
     
     # 2. Insight (AI Generated - Mocked for MVP)
-    insight = _generate_synthetic_insight(stats, segments, alerts)
+    insight = _generate_synthetic_insight(stats, segments, alerts, benchmark)
     
     # Header Reporte
     context_title = f"{uo_value}" if uo_value else "Corporativo"
@@ -334,10 +363,39 @@ def _generate_monthly_report_sync(month: int, year: int, uo_level: Optional[str]
     rb.add_insight_alert(insight, severity="info" if stats['rate_gral'] < 0.03 else "warning")
     
     # 3. Kpis Mes Actual Enriquecidos
+    # 3. Kpis Mes Actual Enriquecidos
+    hc_val = int(stats['hc'])
+    ceses_total = int(stats['total_ceses'])
+    voluntarios = int(stats['renuncias'])
+    rate_gral = stats['rate_gral']
+    involuntarios = ceses_total - voluntarios
+    
     kpis = [
-        {"label": "HC Base", "value": str(int(stats['hc'])), "color": "blue"},
-        {"label": "Ceses Totales", "value": str(int(stats['total_ceses'])), "delta": f"Vol: {stats['rate_vol']:.1%}", "color": "normal"},
-        {"label": "Tasa Rotación", "value": f"{stats['rate_gral']:.2%}", "color": "red" if stats['rate_gral'] > benchmark['avg_rate'] else "green"}
+        {
+            "label": "HC Base", 
+            "value": str(hc_val), 
+            "color": "blue",
+            "tooltip_data": f"{hc_val} = Total Colaboradores Activos (Inicio de Mes)"
+        },
+        {
+            "label": "Ceses Totales", 
+            "value": str(ceses_total), 
+            "delta": f"{ceses_total - int(benchmark['avg_ceses'])} vs Promedio ({int(benchmark['avg_ceses'])})", 
+            "color": "red",
+            "tooltip_data": f"{ceses_total} = {voluntarios} Renuncias + {involuntarios} Inv."
+        },
+        {
+            "label": "Rotación General", 
+            "value": f"{rate_gral:.2%}", 
+            "color": "red" if rate_gral > benchmark['avg_rate'] else "green",
+            "tooltip_data": f"{rate_gral:.2%} = ({ceses_total} Ceses / {hc_val} HC Base) * 100"
+        },
+        {
+            "label": "Rotación Voluntaria",
+            "value": f"{stats['rate_vol']:.2%}",
+            "color": "orange",
+            "tooltip_data": f"{stats['rate_vol']:.2%} = ({voluntarios} Renuncias / {hc_val} HC Base) * 100"
+        }
     ]
     rb.add_kpi_row(kpis)
     
@@ -370,8 +428,20 @@ def _generate_monthly_report_sync(month: int, year: int, uo_level: Optional[str]
     ffvv_share = segments['FFVV'] / stats['total_ceses'] if stats['total_ceses'] else 0
     
     seg_kpis = [
-        {"label": "Administrativos", "value": f"{admi_share:.0%}", "delta": f"{segments['ADMI']} ceses", "color": "blue"},
-        {"label": "Fuerza Ventas", "value": f"{ffvv_share:.0%}", "delta": f"{segments['FFVV']} ceses", "color": "orange"}
+        {
+            "label": "Administrativos", 
+            "value": f"{admi_share:.1%}", 
+            "delta": f"{segments['ADMI']} ceses", 
+            "color": "off",
+            "tooltip_data": f"{admi_share:.1%} = ({segments['ADMI']} Adm. / {stats['total_ceses']} Total) * 100"
+        },
+        {
+            "label": "Fuerza Ventas", 
+            "value": f"{ffvv_share:.1%}", 
+            "delta": f"{segments['FFVV']} ceses", 
+            "color": "off",
+            "tooltip_data": f"{ffvv_share:.1%} = ({segments['FFVV']} FFVV / {stats['total_ceses']} Total) * 100"
+        }
     ]
     rb.add_text("#### 👥 Distribución por Segmento", variant="standard")
     rb.add_kpi_row(seg_kpis)
@@ -535,10 +605,40 @@ def _generate_annual_report_sync(year: int, uo_level: Optional[str], uo_value: O
     rb.add_insight_alert(insight_text, severity="info")
     
     # 3. KPIs Anuales
+    # 3. KPIs Anuales
+    avg_hc_val = int(stats_curr['avg_hc'])
+    ceses_total = int(stats_curr['total_ceses'])
+    voluntarios = int(stats_curr['renuncias'])
+    involuntarios = ceses_total - voluntarios
+    rate_anual = stats_curr['rate_annual']
+    
     kpis = [
-        {"label": "HC Promedio", "value": str(int(stats_curr['avg_hc'])), "color": "blue"},
-        {"label": "Total Ceses", "value": str(stats_curr['total_ceses']), "delta": f"vs {stats_prev['total_ceses']} en {year-1}", "color": "normal"},
-        {"label": "Rotación Anual", "value": f"{stats_curr['rate_annual']:.1%}", "delta": f"Vol: {stats_curr['rate_vol_annual']:.1%}", "color": "red" if stats_curr['rate_annual'] > 0.15 else "green"}
+        {
+            "label": "HC Promedio", 
+            "value": str(avg_hc_val), 
+            "color": "blue",
+            "tooltip_data": f"{avg_hc_val} = Promedio de los 12 cierres mensuales"
+        },
+        {
+            "label": "Total Ceses", 
+            "value": str(ceses_total), 
+            "delta": f"vs {stats_prev['total_ceses']} en {year-1}", 
+            "color": "red",
+            "tooltip_data": f"{ceses_total} = {voluntarios} Renuncias + {involuntarios} Inv."
+        },
+        {
+            "label": "Rotación General Anual", 
+            "value": f"{rate_anual:.1%}", 
+            "delta": f"vs {stats_prev['rate_annual']:.1%} en {year-1}", 
+            "color": "red",
+            "tooltip_data": f"{rate_anual:.1%} = ({ceses_total} Ceses / {avg_hc_val} Avg HC) * 100"
+        },
+        {
+            "label": "Rotación Voluntaria",
+            "value": f"{stats_curr['rate_vol_annual']:.2%}",
+            "color": "orange",
+            "tooltip_data": f"{stats_curr['rate_vol_annual']:.2%} = ({voluntarios} Renuncias / {avg_hc_val} Avg HC) * 100"
+        }
     ]
     rb.add_kpi_row(kpis)
     
@@ -570,8 +670,21 @@ def _generate_annual_report_sync(year: int, uo_level: Optional[str], uo_value: O
     admi_share = segments['ADMI'] / stats_curr['total_ceses'] if stats_curr['total_ceses'] else 0
     ffvv_share = segments['FFVV'] / stats_curr['total_ceses'] if stats_curr['total_ceses'] else 0
     seg_kpis = [
-        {"label": "Administrativos", "value": f"{admi_share:.0%}", "delta": f"{segments['ADMI']} ceses", "color": "blue"},
-        {"label": "Fuerza Ventas", "value": f"{ffvv_share:.0%}", "delta": f"{segments['FFVV']} ceses", "color": "orange"}
+        {
+            "label": "Administrativos", 
+            "value": f"{admi_share:.1%}", 
+            "delta": f"{segments['ADMI']} ceses", 
+            "color": "off",
+            "tooltip_data": f"{admi_share:.1%} = ({segments['ADMI']} Adm. / {stats_curr['total_ceses']} Total) * 100"
+
+        },
+        {
+            "label": "Fuerza Ventas", 
+            "value": f"{ffvv_share:.1%}", 
+            "delta": f"{segments['FFVV']} ceses", 
+            "color": "off",
+            "tooltip_data": f"{ffvv_share:.1%} = ({segments['FFVV']} FFVV / {stats_curr['total_ceses']} Total) * 100"
+        }
     ]
     rb.add_text("#### 👥 Distribución del Año", variant="standard")
     rb.add_kpi_row(seg_kpis)
