@@ -9,7 +9,7 @@ settings = get_settings()
 
 MOCK_USERS = {
     "admin": {
-        "password": settings.SECRET_KEY, # Mantenemos compatibilidad actual
+        "password": "p014654", # Password de acceso administrativo
         "profile": ProfileEnum.ADMIN.value
     },
     "ejecutivo": {

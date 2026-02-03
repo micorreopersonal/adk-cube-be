@@ -24,3 +24,6 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
     profile: Optional[str] = "EJECUTIVO"
+
+class ResetSessionRequest(BaseModel):
+    session_id: str = Field(..., description="ID de sesión a limpiar.")

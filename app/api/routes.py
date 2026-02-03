@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.config import get_settings
-from app.schemas.chat import ChatRequest, ChatResponse, Token, TokenData
+from app.schemas.chat import ChatRequest, ChatResponse, Token, TokenData, ResetSessionRequest
 from app.core.security import create_access_token, get_current_user
 from app.core.mock_users import get_user
 # Note: This import will be updated in Phase 6, but putting correct one now
@@ -33,10 +33,14 @@ async def health_check():
 
 @api_router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Limpiar inputs (Trim whitespace) para evitar errores de capa 8
+    username_clean = form_data.username.strip()
+    password_clean = form_data.password.strip()
+
     # Validación contra "Base de Datos" de Mock Users
-    user_db = get_user(form_data.username)
+    user_db = get_user(username_clean)
     
-    if not user_db or user_db["password"] != form_data.password:
+    if not user_db or user_db["password"] != password_clean:
          raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
@@ -130,6 +134,12 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
     else:
         final_response_text = response_text
 
+    # SENSOR VISUAL: Imprimir el contrato JSON saliente para debug
+    if visual_package:
+        print("\n🔍 [SENSOR VISUAL] Outgoing JSON Payload:")
+        print(json.dumps(visual_package, indent=2, default=str))
+        print("-" * 60)
+
     return ChatResponse(
         response=final_response_text, 
         response_type=visual_package["response_type"],
@@ -137,6 +147,26 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
         session_id=request.session_id,
         metadata={"agent_name": ai_router.name}
     )
+
+@api_router.post("/session/reset")
+async def reset_session(request: ResetSessionRequest, current_user: TokenData = Depends(get_current_user)):
+    """
+    Endpoint para borrar la memoria (sesión) del agente.
+    Permite al usuario iniciar una conversación limpia.
+    """
+    try:
+        service = get_firestore_service()
+        doc_ref = service.client.collection(settings.FIRESTORE_COLLECTION).document(request.session_id)
+        
+        # Eliminar documento (Firestore API)
+        await doc_ref.delete()
+        
+        return {"status": "success", "message": f"Sesión {request.session_id} eliminada exitosamente."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al eliminar sesión: {str(e)}"
+        )
 
 # --- Endpoints de Prueba de Infraestructura (Mock) ---
 

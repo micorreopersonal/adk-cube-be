@@ -1,4 +1,5 @@
 from google.adk.sessions import BaseSessionService, Session
+from google.adk.events.event import Event
 from google.cloud import firestore
 from app.services.firestore import get_firestore_service
 from typing import Optional, Any
@@ -34,10 +35,14 @@ class FirestoreADKSessionService(BaseSessionService):
             state=data.get("state", {})
         )
 
-    def _map_history_to_events(self, history: list) -> list:
+    def _map_history_to_events(self, history: list) -> list[Event]:
         """Adapta eventos legados al esquema de ADK (author/content)."""
         adapted = []
-        for event in history:
+        # OPTIMIZACIÓN DE LATENCIA:
+        # Solo cargamos los últimos 20 mensajes para evitar payloads gigantes de 4.5s
+        recent_history = history[-20:] if history else []
+        
+        for event in recent_history:
             # Crear copia para no mutar original
             e = event.copy() if isinstance(event, dict) else event
             if isinstance(e, dict):
@@ -45,14 +50,17 @@ class FirestoreADKSessionService(BaseSessionService):
                 if "role" in e and "author" not in e:
                     e["author"] = e.pop("role")
                 # Map text -> content (si es texto simple)
-                # ADK Event content puede ser complejo (parts), pero si es dict simple asumimos adaptación básica
-                # Si 'text' existe y 'content' no
                 if "text" in e and "content" not in e:
-                    # ADK/GenAI Content suele requerir estructura 'parts' o similar si es 'Content' type
-                    # Probamos envolviendo en dict simple, o si el modelo acepta texto pero falla por otra razon.
-                    # Dado el error 'Input should be a valid dictionary', content debe ser dict.
                     e["content"] = {"parts": [{"text": e.pop("text")}]} 
-            adapted.append(e)
+                
+                # Convertir a objeto Event oficial de ADK
+                try:
+                    adapted.append(Event(**e))
+                except:
+                    # Si falla la validación, lo omitimos para no romper la carga de sesión
+                    continue
+            elif isinstance(e, Event):
+                adapted.append(e)
         return adapted
 
     async def create_session(

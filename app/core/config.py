@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     PROJECT_ID: str
     REGION: str = "us-central1"
     ENV: str = "development"  # "development" o "production"
+    MODEL_NAME: str = "gemini-1.5-flash"
     
     # BigQuery
     BQ_DATASET: str
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
     
     # App
     LOG_LEVEL: str = "INFO"
-    SECRET_KEY: str = "p014654"
+    SECRET_KEY: str = "adk-talent-analytics-super-secret-key-2026-sota-security"
     
     @property
     def APP_ENV(self):

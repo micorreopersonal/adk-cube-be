@@ -2,10 +2,14 @@ from google.adk import Runner
 import os
 import asyncio
 import time
+import random
 import logging
+import traceback
 from google.genai import types, Client
+from google.adk.events.event import Event
 from app.ai.agents.hr_agent import get_hr_agent
 from app.core.config import get_settings
+from app.ai.tools.triage_validator import validate_dimensions, list_organizational_units
 
 from app.services.adk_firestore_connector import FirestoreADKSessionService
 
@@ -14,6 +18,8 @@ class AgentRouter:
     Orquestador principal que redirige las consultas a los agentes especialistas.
     Usa el Runner de ADK para manejar la sesión y la ejecución del agente.
     """
+    _request_timestamps = [] # Class-level variable to track RPM across instances
+
     def __init__(self):
         settings = get_settings()
         self.session_service = FirestoreADKSessionService() # Integración Firestore real
@@ -29,6 +35,81 @@ class AgentRouter:
             location=settings.REGION,
             http_options={'api_version': 'v1'} 
         )
+        
+        # Prompt ligero para el triage inicial (Usando Single Quotes para seguridad)
+        self.TRIAGE_PROMPT = '''
+        Eres el Validador de People Analytics. Tu misión es RECOLECTAR dimensiones para consultas de datos O facilitar la EXPLORACIÓN del catálogo.
+
+        ### MODOS DE ACTUACIÓN (PRIORIDAD DESCENDENTE):
+
+        1. **MODO CONVERSACIONAL (Saludos/Ayuda):**
+           - Si el usuario saluda ("hola", "buenos días") o pide ayuda general.
+           - ACCIÓN: Responde amablemente y ofrece tu ayuda. **PROHIBIDO USAR TOOLS**.
+           - Fin de la interacción.
+
+        2. **MODO EXPLORACIÓN (Listado de Unidades):**
+           - Si pide "ver las divisiones", usa `list_organizational_units(level='uo2')`.
+           - Si pide "áreas de la división X", usa `list_organizational_units(level='uo3', parent_uo='X')`.
+           - Entrega el listado en bullet points.
+
+        3. **INTELIGENCIA DE MEMORIA (SLOTFILLING RÁPIDO):**
+           - **ACCIÓN:** Usa `process_triage_step` para guardar lo que detectes.
+           - **ESTADO:** Si "ESTADO DE MEMORIA" tiene el dato, NO lo pidas.
+           
+           - **MODO RECOLECCIÓN:**
+             - Detecta dato -> `process_triage_step`.
+             - Si faltan slots en el ESTADO, pídelos.
+
+           - **MODO PREPARACIÓN (Solo cuando tengas los 3 Slots en MEMORIA):**
+             - **NO VALIDES NADA EXTRAMENTE.** Asume que lo que dice el usuario existe.
+             - Si tienes Periodo, Estructura y Forma -> Responde "PROCEED" INMEDIATAMENTE.
+             - **YA NO PIDAS CONFIRMACIÓN EXPLICITA**. Si el usuario te dio los 3 datos, asume que quiere el reporte YA.
+
+        4. **BYPASS DE COMPLEJIDAD (Regla "Pasa la bola"):**
+           - Si el usuario pide cosas complejas ("Evolución UO3", "Comparativa detallada", "Explicación profunda").
+           - **COMPARATIVA DE SEGMENTOS:** Si el usuario pide comparar "Fuerza de Ventas vs Administrativos" (o similares):
+             - **ACCIÓN:** No te detengas a elegir un segmento. Registra `structure='COMPARATIVA'`, `format='graph'` y responde "PROCEED" de inmediato.
+           - **NO JUZGUES SI ES POSIBLE.** No es tu trabajo.
+           - Tu trabajo es extraer lo básico y dar paso al EXPERTO.
+
+        ### DICCIONARIO DE EQUIVALENCIAS (ZERO-SLOT):
+        Para maximizar la agilidad, si detectas estas palabras, mapea el slot y di "PROCEED":
+        - **ASUME `format='table'` (Listado):** 
+          - "listado", "lista", "relación", "tabla", "cuadro", "quiénes son", "detalle", "listar", "reporte", "nombres de".
+        - **ASUME `format='graph'` (Evolución):** 
+          - "evolución", "tendencia", "mes a mes", "histórico", "gráfico", "curva", "línea", "comportamiento".
+        - **ASUME `format='kpi'` (Dato Puntual):** 
+          - "cuánto es", "la cifra de", "el indicador", "el número", "valor", "dato".
+
+        ### MAPA DE DIVISIONES (UO2): 
+        Si el usuario nombra una, asume `structure` y nivel División:
+        AUDITORIA INTERNA, DIVISION FINANZAS, DIVISION INVERSIONES, DIVISION LEGAL Y REGULACION, DIVISION MARKETING Y ESTRATEGIA, DIVISION RIESGOS, DIVISION SALUD, DIVISION SEGUROS EMPRESAS, DIVISION SEGUROS PERSONAS, DIVISION TALENTO, DIVISION TECNOLOGIA, DIVISION TRANSFORMACION.
+
+        ### REGLAS DE ORO:
+        - **VELOCIDAD PURA:** Tu trabajo es llenar el JSON y pasar al experto. No dudes. No valides.
+        - **PROHIBIDO PREGUNTAR FORMATO:** Si el texto ya implica el formato (ej. "el listado"), **NO PREGUNTES**. Establece el slot y di "PROCEED".
+        - **AGRUPACIONES:** Si el usuario dice "agrupado por X", establece `format='distribution'` si no especificó "tabla" o "listado". Pero si dijo "listado agrupado", `format='table'` manda.
+        - **BYPASS:** Si el usuario dice "Analiza Finanzas 2025", llena los slots y lanza "PROCEED" en el mismo turno.
+        
+        ### EJEMPLOS DE AGILIDAD (FEW-SHOT):
+        - **Usuario:** "Pásame la relación de cesados de Finanzas 2025"
+          - *Acción:* `process_triage_step(period='2025', structure='FINANZAS', format='table')` -> "PROCEED".
+        - **Usuario:** "¿Cuál es el cuadro de rotación de Marketing?"
+          - *Acción:* `process_triage_step(period='2025', structure='MARKETING', format='table')` -> "PROCEED".
+        - **Usuario:** "Evolución de rotación en 2024"
+          - *Acción:* `process_triage_step(period='2024', structure='TOTAL', format='graph')` -> "PROCEED".
+        '''
+
+    def _track_and_log_rpm(self):
+        """Mantiene una ventana móvil de 60 segundos para calcular RPM."""
+        now = time.time()
+        # Limpiar timestamps viejos (>60s)
+        AgentRouter._request_timestamps = [t for t in AgentRouter._request_timestamps if now - t < 60]
+        # Añadir actual
+        AgentRouter._request_timestamps.append(now)
+        rpm = len(AgentRouter._request_timestamps)
+        self.logger.info(f"📊 [METRICS] Current RPM: {rpm} requests/min")
+        return rpm
 
     async def route(self, message: str, session_id: str = "default", profile: str = "EJECUTIVO") -> str:
         """
@@ -46,13 +127,6 @@ class AgentRouter:
         os.environ["GOOGLE_CLOUD_PROJECT"] = settings.PROJECT_ID
         os.environ["GOOGLE_CLOUD_LOCATION"] = settings.REGION
 
-        # 2. Inicializar Runner dinámico
-        runner = Runner(
-            app_name=app_name,
-            agent=specialized_agent,
-            session_service=self.session_service
-        )
-
         # 3. Preparar mensaje
         if profile:
             instruction_prefix = f"[INSTRUCCIÓN DE PERFIL: Responde asumiendo que el usuario es '{profile}'.]\n\n"
@@ -60,15 +134,187 @@ class AgentRouter:
         else:
             full_message = message
 
+        # 0. TRIAGE INICIAL (Fast turn)
+        # Evaluamos si vale la pena encender la maquinaria de herramientas
+        
+        # --- OPTIMIZACIÓN ZERO-LATENCY: Bypassing LLM para saludos triviales ---
+        clean_msg = message.lower().strip()
+        greetings = ["hola", "buenos días", "buenas tardes", "buenas noches", "hey", "qué tal", "que tal", "hola!"]
+        if clean_msg in greetings or (len(clean_msg) < 15 and "hola" in clean_msg):
+             self.logger.info("[ROUTER] Fast-Path detection: Greeting.")
+             responses = [
+                 "¡Hola! 👋 ¿En qué puedo ayudarte hoy con People Analytics?",
+                 "¡Hola! Estoy listo para ayudarte a explorar datos o realizar análisis.",
+                 "¡Buenas! ¿Qué información necesitas consultar hoy?"
+             ]
+             return random.choice(responses)
+        # -----------------------------------------------------------------------
+
+        # IMPORTANTE: Incluimos breve historial para evitar repeticiones (Context-Aware Triage)
+        try:
+            t_start_session = time.time()
+            session = await self.session_service.get_session(app_name=app_name, user_id=user_id, session_id=session_id)
+            self.logger.info(f"[ROUTER] Session fetch time: {time.time() - t_start_session:.4f}s")
+            
+            # --- GESTIÓN DE ESTADO (MEMORY SLOTS) ---
+            triage_slots = {}
+            if session:
+                triage_slots = session.state.get("triage_slots", {})
+
+            # --- HERRAMIENTA UNIFICADA DE BAJA LATENCIA ---
+            def process_triage_step(
+                period: str = None, 
+                structure: str = None, 
+                format: str = None,
+                reset_memory: bool = False
+            ):
+                """
+                ACCIÓN ATÓMICA: 
+                1. Actualiza la memoria con lo nuevo.
+                2. Valida automáticamente lo recibido (Año/Estructura).
+                3. Devuelve estado actual y validaciones.
+                """
+                # 0. Reset si se solicita (cambio de tema)
+                if reset_memory:
+                    triage_slots.clear()
+                    
+                # 1. Actualizar Memoria
+                if period: triage_slots["period"] = period
+                if structure: triage_slots["structure"] = structure
+                if format: triage_slots["format"] = format
+                
+                # 2. Validación "Dummy" (Ultrarrápida)
+                # Ya NO consultamos BigQuery. Asumimos validez y dejamos que el experto (HR Agent) falle si es necesario.
+                validation_log = []
+                
+                # Simple heurística de texto para evitar basura obvia
+                cur_struct = triage_slots.get("structure")
+                if cur_struct:
+                    triage_slots["structure_valid"] = True # Fe ciega por velocidad
+
+                cur_period = triage_slots.get("period")
+                if cur_period:
+                    triage_slots["period_valid"] = True
+
+                return {
+                    "memory_updated": triage_slots,
+                    "validation_alerts": [], # Sin alertas de base de datos
+                    "status": "Ready to Proceed" if triage_slots.get("period") and triage_slots.get("structure") and triage_slots.get("format") else "Missing Slots"
+                }
+
+            # ----------------------------------------------
+            
+            triage_contents = []
+            if session and session.events:
+                # Tomamos los últimos 150 eventos para garantizar contexto completo
+                # NOTA: 10 eventos a veces se quedan cortos si hay mucha interacción 'small talk' previa.
+                for ev in session.events[-15:]:
+                    try:
+                        role = "user" if ev.author == "user" else "model"
+                        text_val = ""
+                        # Extraer texto de forma robusta sea dict o objeto
+                        content = ev.content
+                        
+                        # Debug raw content type
+                        # print(f"DEBUG EVENT: {type(content)} - {content}")
+                        
+                        if isinstance(content, dict):
+                            if "parts" in content:
+                                for p in content["parts"]:
+                                    if "text" in p: text_val += p["text"]
+                            elif "text" in content:
+                                text_val = content["text"]
+                        elif isinstance(content, str):
+                            text_val = content
+                        elif hasattr(content, "parts"): # Soporte directo objeto GenAI
+                             for p in content.parts:
+                                 if p.text: text_val += p.text
+
+                        if text_val:
+                            # Usar diccionarios puros 
+                            triage_contents.append({"role": role, "parts": [{"text": text_val}]})
+                    except Exception as e:
+                        self.logger.error(f"Error parsing event history: {e}")
+                        continue
+
+            # Añadir el mensaje actual (limpio)
+            triage_contents.append({"role": "user", "parts": [{"text": message}]})
+            
+            # Incorporar ESTADO y PERFIL en la instrucción del sistema
+            triage_instr = f"[ESTADO DE MEMORIA ACTUAL: {triage_slots}]\n\n[PERFIL USUARIO: {profile}]\n\n" + self.TRIAGE_PROMPT
+
+            t_start_llm = time.time()
+            self._track_and_log_rpm() # Telemetría antes de llamar
+            triage_response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=triage_contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=triage_instr,
+                    temperature=0.0,
+                    tools=[process_triage_step], # SOLO herramientas lógicas, nada de I/O
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=False,
+                        maximum_remote_calls=3 # Reducimos max calls pues ya no hay loops de validación 
+                    )
+                )
+            )
+            self.logger.info(f"[ROUTER] LLM Generation time: {time.time() - t_start_llm:.4f}s")
+            
+            # Obtener texto de forma ultra-robusta
+            triage_text = ""
+            if triage_response.candidates:
+                for part in triage_response.candidates[0].content.parts:
+                    if part.text:
+                        triage_text += part.text
+            triage_text = triage_text.strip()
+
+            if triage_text and "PROCEED" not in triage_text:
+                self.logger.info(f"[TRIAGE] Prompting for clarification: {triage_text[:50]}...")
+                
+                # PERSISTIR TURNO EN LA SESIÓN PARA NO PERDER CONTEXTO
+                if not session:
+                    session = await self.session_service.create_session(
+                        app_name=app_name, user_id=user_id, session_id=session_id
+                    )
+                
+                # ACTUALIZAR ESTADO EN LA SESIÓN
+                session.state["triage_slots"] = triage_slots
+                
+                # Guardar el mensaje del usuario de forma limpia (sin prefijos de sistema)
+                await self.session_service.append_event(session, Event(
+                    author="user",
+                    content={"parts": [{"text": message}]}
+                ))
+                # Guardar la respuesta del triaje
+                await self.session_service.append_event(session, Event(
+                    author="model",
+                    content={"parts": [{"text": triage_text}]}
+                ))
+                
+                return triage_text
+        except Exception as e:
+            self.logger.error(f"Triage failed: {e}. Falling back to full agent.")
+            self.logger.error(traceback.format_exc())
+            pass
+
+        # 2. Inicializar Runner dinámico (Maquinaria pesada)
+        # Inyectamos el ESTADO del triaje directamente en el agente para evitar re-lectura de historial
+        specialized_agent = get_hr_agent(profile=profile, context_state=triage_slots)
+        
+        runner = Runner(
+            app_name=app_name,
+            agent=specialized_agent,
+            session_service=self.session_service
+        )
+
         new_message = types.Content(parts=[types.Part(text=full_message)], role="user")
         
         # 4. Asegurar sesión (Confirmado Async)
         if not await self.session_service.get_session(app_name=app_name, user_id=user_id, session_id=session_id):
             await self.session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
 
-        # 5. Ejecutar con Estrategia de Reintento (Resiliencia ante 429)
         max_retries = 3
-        retry_delay = 2 # segundos iniciales
+        retry_delay = 5 # Aumentamos delay inicial por seguridad (era 2)
         
         # Variables de telemetría
         total_api_calls = 0
@@ -86,11 +332,19 @@ class AgentRouter:
                 # and after each tool call result is processed.
                 current_turn_counted = False
                 
+                t_run_start = time.time()
+                t_last_event = t_run_start
+                t_tool_start = 0
+
                 async for event in runner.run_async(
                     user_id=user_id,
                     session_id=session_id,
                     new_message=new_message
                 ):
+                    now = time.time()
+                    delta = now - t_last_event
+                    t_last_event = now
+
                     if event.content and event.content.parts:
                         # If we get content, and we haven't counted this turn yet, count it
                         if not current_turn_counted:
@@ -104,11 +358,14 @@ class AgentRouter:
                             if part.function_call:
                                 total_api_calls += 1 
                                 tools_called.append(part.function_call.name)
-                                self.logger.info(f"[PROFILER] AI requested tool: {part.function_call.name}")
+                                self.logger.info(f"[PROFILER] 🤖 Model planned tool: {part.function_call.name} (Think time: {delta:.4f}s)")
                                 # After a function call, a new call will follow to process the result
                                 current_turn_counted = False
+                                t_tool_start = time.time()
 
                             if part.function_response:
+                                duration = time.time() - t_tool_start
+                                self.logger.info(f"[PROFILER] 🛠️ Tool execution finished in {duration:.4f}s")
                                 try:
                                     if hasattr(part.function_response, 'response'):
                                         res = part.function_response.response

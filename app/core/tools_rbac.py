@@ -1,23 +1,17 @@
-from typing import List, Callable
-from app.core.constants import ProfileEnum
-from app.ai.tools.bq_queries.hr_metrics import (
-    get_monthly_attrition, 
-    get_talent_alerts,
-    get_yearly_attrition,
-    get_monthly_trend,
-    get_year_comparison_trend
-)
-from app.ai.tools.bq_queries.turnover import get_turnover_deep_dive
-from app.ai.tools.bq_queries.leavers import get_leavers_list, get_leavers_distribution
-from app.ai.tools.bq_queries.turnover_metrics import get_advanced_turnover_metrics
-from app.ai.tools.report_generator import generate_executive_report
+from typing import Callable, List, Dict
+from app.api.routes import get_current_user 
+from app.ai.tools.universal_analyst import get_analytical_data
 
-# Configuración centralizada de Roles y Herramientas (RBAC)
-TOOL_ACCESS_CONFIG = {
-    ProfileEnum.ADMIN.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_year_comparison_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, get_leavers_distribution, generate_executive_report, get_advanced_turnover_metrics],
-    ProfileEnum.ANALISTA.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_year_comparison_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, get_leavers_distribution, generate_executive_report, get_advanced_turnover_metrics],
-    ProfileEnum.GERENTE.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_year_comparison_trend, get_talent_alerts, get_turnover_deep_dive, get_leavers_list, get_leavers_distribution, generate_executive_report, get_advanced_turnover_metrics], 
-    ProfileEnum.EJECUTIVO.value: [get_monthly_attrition, get_yearly_attrition, get_monthly_trend, get_year_comparison_trend, get_turnover_deep_dive, get_leavers_distribution, generate_executive_report, get_advanced_turnover_metrics], 
+# Mapa de Roles -> Herramientas
+TOOL_ACCESS_CONFIG: Dict[str, List[Callable]] = {
+    # El Ejecutivo tiene acceso completo a la herramienta universal
+    "EJECUTIVO": [get_analytical_data],
+    
+    # El Admin también, más herramientas de sistema si las hubiera
+    "ADMIN": [get_analytical_data],
+    
+    # Perfil Restricted (ej. Solo métricas básicas) - Por ahora igual
+    "RESTRICTED": [get_analytical_data]
 }
 
 def get_allowed_tools(profile: str) -> List[Callable]:
@@ -26,5 +20,5 @@ def get_allowed_tools(profile: str) -> List[Callable]:
     Si el perfil no existe, retorna un set mínimo seguro.
     """
     # Default seguro: solo métricas básicas
-    default_tools = [get_monthly_attrition]
+    default_tools = [get_analytical_data] 
     return TOOL_ACCESS_CONFIG.get(profile, default_tools)

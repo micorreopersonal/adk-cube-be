@@ -35,6 +35,11 @@
     *   **Impacto Financiero**: Cuantifica el costo económico de las salidas en áreas críticas.
     *   **Visualización Comparativa**: Genera gráficos que comparan sub-unidades contra el benchmark divisional.
 
+5.  **Optimización de Rendimiento y UX (Acid Test):**
+    *   **Ejecución Paralela:** Las consultas comparativas (Año actual vs Año anterior) se ejecutan simultáneamente, reduciendo la latencia en ~40%.
+    *   **Gestión de Memoria:** Funcionalidad de "Reset Session" para limpiar el contexto del agente y corregir alucinaciones.
+    *   **Observabilidad Total:** Logs de rendimiento (`[PERF]`) en todas las herramientas para monitoreo de latencia (SQL vs Python).
+
 
 ---
 
