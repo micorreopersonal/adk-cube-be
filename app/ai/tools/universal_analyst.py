@@ -19,6 +19,81 @@ MONTH_MAP = {
 
 # --- HELPER FUNCTIONS ---
 
+def _ensure_dataframe_completeness(df: pd.DataFrame, req: SemanticRequest) -> pd.DataFrame:
+    """
+    Middleware de Completitud: Garantiza que la estructura de datos
+    refleje fielmente la intención de comparación del usuario, incluso si
+    la base de datos no retorna filas para ciertos periodos/grupos.
+    
+    Estrategia: 'Zero-Filling' basado en Filtros Explícitos.
+    Si el filtro es anio=[2024, 2025] y SQL solo trae 2025, inyectamos 2024=0.
+    """
+    if not req.cube_query.dimensions or not req.cube_query.filters:
+        return df
+
+    # 1. Identificar Eje Principal (X-Axis)
+    x_dim = req.cube_query.dimensions[0] 
+    
+    # 2. Verificar si hay una intención explícita de rango/lista en ese eje
+    filter_vals = None
+    for f in req.cube_query.filters:
+        if f.dimension == x_dim:
+            filter_vals = f.value
+            break
+    
+    # Si no es una lista, no hay "comparación explícita" que rellenar
+    if not isinstance(filter_vals, list):
+        return df
+        
+    # 3. Calcular Delta (Lo que esperamos vs Lo que llegó)
+    # Normalizar a string para set operations
+    expected_keys = set(str(v) for v in filter_vals)
+    
+    if df.empty:
+        actual_keys = set()
+        # Si está vacío, necesitamos inicializar el DF con las columnas correctas
+        columns = req.cube_query.dimensions + req.cube_query.metrics
+        df = pd.DataFrame(columns=columns)
+    else:
+        actual_keys = set(df[x_dim].astype(str).unique())
+        
+    missing_keys = expected_keys - actual_keys
+    
+    if not missing_keys:
+        return df
+        
+    print(f"🧱 [MIDDLEWARE] Data Completeness: Injecting missing keys for {x_dim}: {missing_keys}")
+    
+    # 4. Inyectar Filas Faltantes (Zero-Filling)
+    new_rows = []
+    for mis in missing_keys:
+        # Intentar mantener el tipo de dato original si es posible
+        val = int(mis) if str(mis).isdigit() else mis
+        
+        row = {x_dim: val}
+        
+        # Rellenar métricas con 0
+        for m in req.cube_query.metrics:
+            row[m] = 0
+            
+        # Otras dimensiones: "N/A" o Contextual
+        # Si hubiera otras dimensiones, quedarían como NaN o None.
+        
+        new_rows.append(row)
+    
+    df_fill = pd.DataFrame(new_rows)
+    df = pd.concat([df, df_fill], ignore_index=True)
+    
+    # 5. Ordenamiento (Crucial para series temporales)
+    if x_dim in ["anio", "mes", "periodo"]:
+        # Ordenar numérica o temporalmente
+        try:
+            df = df.sort_values(by=x_dim)
+        except:
+            pass
+            
+    return df
+
 def _format_kpi_block(df: pd.DataFrame, metrics: List[str]) -> KPIBlock:
     """Transforma una fila de resultados en bloque de KPIs."""
     items = []
@@ -59,7 +134,8 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
         if x_dim == "mes":
             labels = [MONTH_MAP.get(lbl, lbl) for lbl in raw_labels]
         else:
-            labels = raw_labels
+            # Data Hygiene: Replace "None" string from database with user-friendly text
+            labels = ["Sin Especificar" if lbl == "None" or lbl == "nan" else lbl for lbl in raw_labels]
             
         # Generar un dataset por cada grupo
         raw_groups = df[group_dim].unique().tolist()
@@ -118,6 +194,17 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
                 
                 datasets.append(Dataset(label=m_label, data=data_points, format=metric_format))
 
+    # ... (existing Dataset generation above)
+    
+    # 3. Handle PIE Specifics
+    # Si la visualización pedida es PIE_CHART, forzamos un único dataset y estructura simple
+    is_pie = req.metadata.requested_viz == "PIE_CHART"
+    
+    if is_pie:
+        # Asegurar colores distintos para cada slice en Pie (Chart.js lo hace auto, pero mejor si es explícito o simple)
+        # Por ahora enviamos estructura estándar, el frontend interpretará labels vs data
+        pass
+
     # 3. Metadata
     # Obtener el label de la primera métrica para el eje Y
     metric_label = "Valor"
@@ -130,14 +217,99 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
         show_legend=True
     )
     
+    # Mapeo de subtipo
+    subtype_map = {
+        "BAR_CHART": "BAR",
+        "PIE_CHART": "PIE",
+        "LINE_CHART": "LINE"
+    }
+    subtype = subtype_map.get(str(req.metadata.requested_viz), "LINE")
+    
     return ChartBlock(
         subtype="BAR" if req.metadata.requested_viz == "BAR_CHART" else "LINE",
         payload=ChartPayload(labels=labels, datasets=datasets),
         metadata=meta
     )
 
+def _format_pie_strategy(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
+    """
+    Estrategia especializada para Gráficos de Torta/Donut.
+    Maneja dos modos:
+    1. Distribución (Dimensional): 1 Métrica desglosada por 1 Dimensión.
+    2. Comparativa (Métrica): N Métricas comparadas entre sí (Transposición).
+    """
+    labels = []
+    data_points = []
+    
+    # --- MODO COMPARATIVA (Multi-Métrica) ---
+    # Prioridad: Si hay >1 métrica, asumimos que se quiere comparar los totales de esas métricas
+    # independientemente de si el LLM agregó dimensiones de desglose (que agregaremos con .sum()).
+    if len(req.cube_query.metrics) > 1:
+        for m_key in req.cube_query.metrics:
+            # Label = Nombre legible de la métrica
+            m_def = METRICS_REGISTRY.get(m_key, {})
+            labels.append(m_def.get("label", m_key))
+            # Valor: Suma total de la columna (Robustez ante dimensiones innecesarias)
+            val = df[m_key].sum()
+            # Convertir numpy types a python nativo si es necesario
+            data_points.append(float(val) if hasattr(val, "item") else val)
+    
+    # --- MODO DISTRIBUCIÓN (Estándar, 1 Métrica + Dimensiones) ---
+    # Ej: "Headcount por División"
+    elif len(req.cube_query.dimensions) > 0:
+        x_dim = req.cube_query.dimensions[0]
+        metric_key = req.cube_query.metrics[0] if req.cube_query.metrics else "count"
+        
+        raw_labels = df[x_dim].astype(str).tolist()
+        # Higiene de Labels
+        labels = ["Sin Especificar" if lbl == "None" or lbl == "nan" else lbl for lbl in raw_labels]
+        
+        data_points = df[metric_key].tolist()
+        
+        # Mapeo de meses
+        if x_dim == "mes":
+            labels = [MONTH_MAP.get(lbl, lbl) for lbl in labels]
+
+    # Construir Dataset único
+    # NOTA: Chart.js para Pie usa 1 dataset. Los colores son automáticos o definidos en array backgroundColor.
+    ds = Dataset(
+        label="Distribución",
+        data=data_points,
+        format=None # Heredar del default o implementar lógica compleja si se requiere
+    )
+    
+    meta = ChartMetadata(
+        title=req.metadata.title_suggestion or "Distribución",
+        show_legend=True
+    )
+    
+    return ChartBlock(
+        subtype="PIE",
+        payload=ChartPayload(labels=labels, datasets=[ds]),
+        metadata=meta
+    )
+
+from app.core.auth.security import mask_document_id, mask_salary
+
 def _format_table_block(df: pd.DataFrame) -> TableBlock:
     """Transforma DF en Tabla (Formato Records para compatibilidad Schema)."""
+    
+    # --- SECURITY LAYER: MASKING SENSITIVE DATA ---
+    # Aplicar máscaras a columnas sensibles antes de serializar
+    sensitive_cols = {
+        "codigo_persona": mask_document_id,
+        "dni": mask_document_id,
+        "ce": mask_document_id,
+        "salary": mask_salary,
+        "sueldo": mask_salary,
+        "remuneracion": mask_salary
+    }
+    
+    for col, masker in sensitive_cols.items():
+        if col in df.columns:
+            # Aplicar máscara y asegurar string
+            df[col] = df[col].apply(lambda x: masker(str(x)) if pd.notnull(x) else x)
+            
     # Serializar a Records (List[Dict]) para evitar problemas de arrays anidados
     records = json.loads(df.to_json(orient="records", date_format="iso"))
     return TableBlock(
@@ -171,6 +343,10 @@ def execute_semantic_query(
             mapping = {
                 "LINE": "LINE_CHART",
                 "BAR": "BAR_CHART",
+                "PIE": "PIE_CHART",
+                "TORTA": "PIE_CHART",
+                "PASTEL": "PIE_CHART",
+                "DONUT": "PIE_CHART",
                 "KPI": "KPI_ROW",
                 "GRAPH": "LINE_CHART",
                 "CHART": "SMART_AUTO"
@@ -266,6 +442,11 @@ def execute_semantic_query(
         t_step = time.time()
         logger.info(f"⏱️ [TIMING] BigQuery execution: {timing['bq_exec']:.3f}s")
         
+        # 3.5 Middleware de Completitud (Arquitectura Escalable)
+        # Inyectar ceros para periodos/dimensiones faltantes ANTES de decidir la visualización
+        # Esto asegura que 1 registro real + 1 registro zero-filled = 2 registros -> Gráfico (no KPI)
+        df = _ensure_dataframe_completeness(df, req)
+        
         if df.empty:
             # Retornar paquete vacío (sin content) o con mensaje de error controlado
             return VisualDataPackage(
@@ -286,6 +467,9 @@ def execute_semantic_query(
         # Lógica de Decisión Visual (Smart Auto)
         if viz_hint == "KPI_ROW" or (viz_hint == "SMART_AUTO" and len(df) == 1):
             blocks.append(_format_kpi_block(df, req.cube_query.metrics))
+        
+        elif viz_hint == "PIE_CHART":
+             blocks.append(_format_pie_strategy(df, req))
             
         elif viz_hint in ["LINE_CHART", "BAR_CHART"] or (viz_hint == "SMART_AUTO" and len(df) > 1):
             blocks.append(_format_chart_block(df, req))

@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from app.services.bigquery import get_bq_service
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 
 settings = get_settings()
 bq_service = get_bq_service()

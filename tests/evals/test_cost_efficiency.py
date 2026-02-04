@@ -9,7 +9,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "../../../"))
 sys.path.insert(0, project_root)
 
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 
 # TUS-005: Cost Efficiency & Guardrails
 # Objetivo: Verificar que nuestras queries típicas no excedan el presupuesto de bytes (1 GB).

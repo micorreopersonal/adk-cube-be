@@ -8,7 +8,7 @@ import traceback
 from google.genai import types, Client
 from google.adk.events.event import Event
 from app.ai.agents.hr_agent import get_hr_agent
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 from app.ai.tools.triage_validator import validate_dimensions, list_organizational_units
 
 from app.services.adk_firestore_connector import FirestoreADKSessionService
@@ -64,6 +64,8 @@ class AgentRouter:
              - **NO VALIDES NADA EXTRAMENTE.** Asume que lo que dice el usuario existe.
              - Si tienes Periodo, Estructura y Forma -> Responde "PROCEED" INMEDIATAMENTE.
              - **YA NO PIDAS CONFIRMACIÓN EXPLICITA**. Si el usuario te dio los 3 datos, asume que quiere el reporte YA.
+             
+             - **REGLA DE HIERRO:** TÚ ERES TEXTO PURO. NUNCA intentes responder con datos, tablas o gráficos simulados. Si el usuario pide eso, REGISTRA LOS SLOTS y di "PROCEED".
 
         4. **BYPASS DE COMPLEJIDAD (Regla "Pasa la bola"):**
            - Si el usuario pide cosas complejas ("Evolución UO3", "Comparativa detallada", "Explicación profunda").
@@ -76,8 +78,8 @@ class AgentRouter:
         Para maximizar la agilidad, si detectas estas palabras, mapea el slot y di "PROCEED":
         - **ASUME `format='table'` (Listado):** 
           - "lista", "listado", "relación", "tabla", "cuadro", "quiénes son", "detalle", "listar", "reporte", "nombres de".
-        - **ASUME `format='graph'` (Evolución):** 
-          - "evolución", "tendencia", "mes a mes", "histórico", "gráfico", "curva", "línea", "comportamiento".
+        - **ASUME `format='graph'` (Evolución/Comparación):** 
+          - "evolución", "tendencia", "mes a mes", "histórico", "gráfico", "curva", "línea", "comportamiento", "comparar", "comparativa", "versus", "vs", "diferencia entre".
         - **ASUME `format='kpi'` (Dato Puntual):** 
           - "cuánto es", "la cifra de", "el indicador", "el número", "valor", "dato".
 

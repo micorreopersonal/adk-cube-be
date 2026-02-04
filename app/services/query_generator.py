@@ -1,7 +1,7 @@
 
 from typing import List, Dict, Any, Optional
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY, MANDATORY_FILTERS
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 
 settings = get_settings()
 

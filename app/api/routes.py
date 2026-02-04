@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 from app.schemas.chat import ChatRequest, ChatResponse, Token, TokenData, ResetSessionRequest
-from app.core.security import create_access_token, get_current_user
-from app.core.mock_users import get_user
+from app.core.auth.security import create_access_token, get_current_user
+from app.core.auth.mock_users import get_user
 # Note: This import will be updated in Phase 6, but putting correct one now
 from app.ai.agents.router_logic import get_router 
 from app.services.bigquery import get_bq_service
@@ -67,7 +67,7 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
     response_text = await ai_router.route(request.message, session_id=request.session_id, profile=user_profile)
     
     # Construir VisualDataPackage
-    from app.ai.utils.response_builder import ResponseBuilder
+    # from app.ai.utils.response_builder import ResponseBuilder (DEPRECATED)
     import json
     
     visual_package = None
@@ -99,15 +99,6 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
                     # Si tiene 'content', es el formato estándar
                     if "content" in candidate:
                         visual_package = candidate
-                    # Si tiene 'visual_package', es el formato detectado en el error (resiliencia)
-                    elif "visual_package" in candidate:
-                        nested = candidate["visual_package"]
-                        builder = ResponseBuilder()
-                        if isinstance(nested, dict):
-                            if "text" in nested: builder.add_text(nested["text"])
-                        elif isinstance(nested, str):
-                            builder.add_text(nested)
-                        visual_package = builder.to_dict()
                     
                     if visual_package and "response_type" not in visual_package:
                         visual_package["response_type"] = "visual_package"
@@ -116,9 +107,10 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
             
         # 2. Fallback: Si no pudimos parsear JSON, envolvemos el texto plano
         if not visual_package:
-            builder = ResponseBuilder()
-            builder.add_text(response_text)
-            visual_package = builder.to_dict()
+            visual_package = {
+                "response_type": "visual_package",
+                "content": [{"type": "text", "payload": response_text}]
+            }
 
     # Determinar el texto de respuesta (Legacy support)
     final_response_text = ""

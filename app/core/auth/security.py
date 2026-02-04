@@ -6,9 +6,9 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt  # PyJWT Migration
 from passlib.context import CryptContext
 
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 from app.schemas.chat import TokenData
-from app.core.constants import ProfileEnum
+from app.core.config.constants import ProfileEnum
 
 settings = get_settings()
 
@@ -65,35 +65,46 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 # --- FUNCIONES DE ANONIMIZACIÓN EXISTENTES ---
 
-def mask_rut(rut: str) -> str:
+def mask_document_id(doc_id: str) -> str:
     """
-    Anonimiza un RUT chileno (ej: 12.345.678-9 -> 12.XXX.XXX-X)
+    Anonimiza un documento de identidad peruano:
+    - DNI (8 dígitos): 12345678 -> 12.***.**8
+    - CE (9-12 chars): 001234567 -> 00.***.**7
     """
-    if not rut:
-        return rut
+    if not doc_id:
+        return doc_id
     
-    # Separar cuerpo y dígito verificador si es posible
-    parts = re.split(r'[-]', rut)
-    body = parts[0]
+    # Limpieza básica
+    clean_doc = doc_id.replace(" ", "").replace("-", "").replace(".", "")
     
-    if len(body) > 4:
-        masked_body = body[:2] + "." + "X" * 3 + "." + "X" * 3
-        if len(parts) > 1:
-            return f"{masked_body}-X"
-        return masked_body
-    return "X.XXX.XXX-X"
+    # Lógica DNI (8 dígitos)
+    if len(clean_doc) == 8 and clean_doc.isdigit():
+        return f"{clean_doc[:2]}.***.**{clean_doc[-1]}"
+        
+    # Lógica CE (Generalmente 9, pero puede variar)
+    if len(clean_doc) >= 9:
+        return f"{clean_doc[:2]}.***.**{clean_doc[-1]}"
+        
+    # Fallback
+    return "XX.XXX.XXX"
 
 def mask_salary(salary: float) -> str:
     """
-    Anonimiza un salario convirtiéndolo en un rango o simplemente enmascarándolo.
-    Según GLOBAL_RULES, los salarios deben ser anonimizados en los logs.
+    Anonimiza un salario monetario.
+    Regla Global: Los salarios deben ser ocultados en logs.
     """
     return "[SALARIO_CONFIDENCIAL]"
 
 def clean_sensitive_data(text: str) -> str:
     """
-    Busca patrones de RUT en un texto y los enmascara.
+    Busca patrones de DNI/CE en un texto y los enmascara.
+    Regex orientada a 8 dígitos seguidos (DNI común).
     """
-    # Regex simple para RUT
-    rut_pattern = r'\d{1,2}\.?\d{3}\.?\d{3}-?[\dkK]'
-    return re.sub(rut_pattern, "XX.XXX.XXX-X", text)
+    # Regex para DNI (8 dígitos aislados o con separadores)
+    dni_pattern = r'\b\d{2}[\.\-]?\d{3}[\.\-]?\d{3}\b'
+    # Regex para CE (aprox - Alfanumérico 9 chars)
+    ce_pattern = r'\b[0-9]{9,12}\b'
+    
+    text = re.sub(dni_pattern, "XX.XXX.XXX", text)
+    text = re.sub(ce_pattern, "XX.XXX.XXX", text)
+    return text

@@ -82,7 +82,7 @@ class VisualDataPackage(BaseModel):
 ContentBlock = VisualBlock
 KPIRowBlock = KPIBlock
 KPICard = KPIItem
-DataSeriesBlock = ChartBlock # Mapeivo preventivo
+DataSeriesBlock = ChartBlock # Mapeo preventivo
 DataSeriesMetadata = ChartMetadata
 TableBlockV1 = TableBlock    # TableBlock ya existe en v2
 PlotBlock = ChartBlock       # Mapeo preventivo

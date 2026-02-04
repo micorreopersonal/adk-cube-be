@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.getcwd())
 
 from app.ai.agents.router_logic import AgentRouter
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 
 async def run_rpm_test():
     router = AgentRouter()

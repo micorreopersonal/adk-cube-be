@@ -1,5 +1,5 @@
 from google.cloud import firestore
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 
 class FirestoreService:
     _instance = None

@@ -1,6 +1,6 @@
 # GLOBAL RULES & ARCHITECTURE - ADK People Analytics Backend
 
-Este documento consolida las reglas de comunicación, arquitectura y seguridad para el desarrollo del ecosistema de IA utilizando **Google Agent Development Kit (ADK)**.
+Este documento consolida las reglas de comunicación, arquitectura y seguridad para el desarrollo del ecosistema de IA utilizando **Google Agent Development Kit (ADK)** bajo el patrón **Semantic Cube**.
 
 ---
 
@@ -11,57 +11,62 @@ Este documento consolida las reglas de comunicación, arquitectura y seguridad p
 
 ---
 
-## 2. Arquitectura del Backend ADK
-La estructura del proyecto sigue un patrón modular nativo de GCP:
+## 2. Arquitectura del Backend ADK (SOTA 2026)
+
+La estructura del proyecto sigue un patrón modular **Semantic Cube**, separando la inteligencia probabilística (AI) de la lógica determinística (Services).
 
 ```text
 /
 ├── app/
-│   ├── agents/             # Lógica de agentes (Google ADK)
-│   │   ├── router.py       # Orquestador (Triage de intención)
-│   │   ├── hr_agent.py     # Especialista en Análisis de Rotación
-│   │   └── docs_agent.py   # Especialista en Documentación/Políticas
-│   ├── tools/              # Herramientas atómicas (Tool-use)
-│   │   ├── bq_queries/     # Consultas SQL optimizadas para Attrition
-│   │   ├── gcs_handlers/   # Procesamiento de Excel y PDFs
-│   │   └── common.py       # Utilidades transversales
-│   ├── services/           # Clientes de Infraestructura (Singleton)
-│   │   ├── bigquery.py     # Gestión de conexiones a BQ
-│   │   ├── storage.py      # Gestión de buckets GCS
-│   │   └── firestore.py    # Persistencia de estado de sesión
-│   ├── core/               # Núcleo del Sistema
-│   │   ├── config.py       # Validación de variables de entorno (Pydantic)
-│   │   └── security.py     # Filtros de anonimización (RUT/Salarios)
-│   └── main.py             # Punto de entrada FastAPI
-├── docs/                   # Documentación de Metodología (HUs)
-│   ├── user-stories/       # Historias de Usuario (HU-00X)
-│   │   ├── HU-00X/
-│   │   │   ├── conceptual.md   # Visión de negocio y objetivos
-│   │   │   ├── functional.md   # Criterios de aceptación y flujos
-│   │   │   └── technical.md    # Diseño técnico y queries
-├── logs/                   # Registro de cambios y resultados de pruebas
-├── tests/                  # Pruebas de integridad de lógica
-├── .env                    # Configuración de secretos local
-├── requirements.txt        # Dependencias de Python
-└── Dockerfile              # Empaquetado para Cloud Run
+│   ├── ai/                 # CEREBRO (Capa Probabilística)
+│   │   ├── agents/         
+│   │   │   ├── router_logic.py  # Orquestador Inteligente (Triage & Memory)
+│   │   │   └── hr_agent.py      # Agente Semántico (Context-Aware)
+│   │   └── tools/          
+│   │       ├── universal_analyst.py # Herramienta Universal (Text-to-SQL + Viz)
+│   │       └── triage_validator.py  # Validaciones de baja latencia
+│   │
+│   ├── core/               # CORAZÓN (Definiciones y Seguridad)
+│   │   ├── analytics/      
+│   │   │   └── registry.py      # Semantic Registry (Single Source of Truth)
+│   │   ├── config.py       # Pydantic Settings
+│   │   └── security.py     # RBAC y Auth
+│   │
+│   ├── services/           # MÚSCULO (Capa Determinística)
+│   │   ├── query_generator.py   # Motor de construcción SQL Seguro
+│   │   ├── adk_firestore_connector.py # Gestión de Sesiones ADK
+│   │   └── bigquery.py     # Cliente BQ Singleton
+│   │
+│   ├── api/                # PUERTA DE ENLACE
+│   │   └── routes.py       # Endpoints FastAPI
+│   └── main.py             # Entrypoint
+│
+├── docs/                   # MEMORIA INSTITUCIONAL
+│   ├── CAPABILITIES.md     # Resumen de Capacidades Técnicas
+│   └── setup/              # Guías de despliegue
+│
+├── tests/                  # ASEGURAMIENTO DE CALIDAD
+│   └── test_semantic_core.py # Suite Unificada (Pytest)
+├── .env                    # Secretos Locales
+└── Dockerfile              # Runtime Cloud Run
 ```
 
 ---
 
 ## 3. Reglas de Desarrollo
-*   **Backend:** FastAPI estricto. La lógica de negocio debe residir en la "Service Layer", no en los endpoints.
-*   **Estado:** La aplicación debe ser **Stateless** (diseñada para Cloud Run). La persistencia de sesión se maneja en **Firestore**.
-*   **GCP Native:** Uso de BigQuery para datos de rotación y Cloud Storage para documentos normativos.
-*   **Trazabilidad (CODE OWNERSHIP):** Todo código nuevo (funciones, clases, scripts) que atienda una historia de usuario debe incluir un comentario explícito referencing su ID.
-    *   Ejemplo: `# TUS-001: Script de evaluación de alucinaciones`
-    *   Ejemplo: `# US-003: Lógica OLAP para rotación multidimensional`
+*   **Semantic First:** Toda métrica nueva DEBE ser registrada primero en `app/core/analytics/registry.py` antes de ser usada por el agente.
+*   **Stateless by Design:** La aplicación no guarda estado en memoria local. Todo contexto conversacional reside en **Firestore**.
+*   **Visual-Data-Package:** Las herramientas analíticas no retornan texto plano, sino objetos estructurados (`VisualDataPackage`) listos para renderizar componentes UI (Gráficos, Tablas, KPIs).
 
 ---
 
 ## 4. Seguridad y Hard Constraints
-*   **Credenciales:** Prohibido el hardcodeo de credenciales. Usar siempre `os.environ` o Secret Manager.
-*   **Anonimización:** Cualquier dato sensible como **RUT** o **Salarios** debe ser anonimizado en los logs.
-*   **Límites de DB:** El agente tiene prohibido ejecutar operaciones `DELETE` en BigQuery.
+*   **Anti-Alucinación:** Prohibido que el LLM genere SQL directo ("Text-to-SQL" crudo). Debe usar el `query_generator` que valida contra el Registry.
+*   **Filtros Obligatorios:** El sistema inyecta automáticamente filtros de seguridad (ej. excluir practicantes) en TODAS las consultas, invisible para el agente.
+*   **Anonimización (Contexto Perú):**
+    *   **Identificadores:** Todo **DNI** o **CE** debe ser enmascarado en logs (ej. `XX.XXX.XXX-X`).
+    *   **Sueldos:** Los valores monetarios de salarios deben ser ocultados (`[SALARIO_CONFIDENCIAL]`).
+*   **Credenciales:** Prohibido hardcodeo. Uso estricto de `os.environ`.
 
 ---
 
@@ -72,33 +77,19 @@ REGION=us-central1
 BQ_DATASET=hr_analytics
 BQ_TABLE_TURNOVER=attrition_table
 GCS_BUCKET_DOCS=hr-docs-bucket
-GCS_BUCKET_LANDING=hr-data-landing
 FIRESTORE_COLLECTION=agent_sessions
 LOG_LEVEL=INFO
-ENV=development
+GOOGLE_GENAI_USE_VERTEXAI=true
 ```
 
 ---
 
-## 6. Políticas de Calidad y Pruebas
-*   **Pruebas Obligatorias:** No se realizará ningún `git push` sin antes haber ejecutado y validado satisfactoriamente los casos de prueba en la carpeta `tests/`.
-*   **Registro de Pruebas (Logs):** Cada conjunto de cambios debe venir acompañado de un archivo de log en la carpeta `logs/`, detallando los cambios realizados y el resultado "OK" de las pruebas.
-*   **Simulación de Negocio:** Las pruebas deben incluir mocks de BigQuery y simulaciones de consultas reales del endpoint `/chat`.
+## 6. Políticas de Calidad (Testing)
+*   **Test-Driven Refactor:** Antes de modificar el núcleo semántico (`query_generator` o `universal_analyst`), se debe ejecutar `pytest tests/test_semantic_core.py` para asegurar no romper la integridad de las métricas.
+*   **Sanidad de Métrica:** Verificar siempre que las fórmulas SQL en `registry.py` coincidan con la definición de negocio (ej. "Activo" vs "Cesado").
 
 ---
 
-## 7. Metodología de Documentación (User Stories)
-Cada nueva funcionalidad debe seguir este flujo de documentación previo a la implementación:
-1.  **Directorio:** `/docs/user-stories/HU-XXX-Nombre/`
-2.  **conceptual.md:** Describe el "Qué" y el "Para qué" desde la perspectiva de negocio.
-3.  **functional.md:** Detalla los criterios de aceptación, entradas/salidas del usuario y lógica de filtros.
-4.  **technical.md:** Define el diseño técnico, la estrategia de agentes/tools a usar y las queries SQL específicas.
-
----
-
-## 8. Estrategia de Orquestación
-*   **Patrón Triage (Router):** Se utiliza un agente `router` para clasificar la intención del usuario.
-*   **Especialización:** 
-    *   `hr_agent`: Orquestación de herramientas de BigQuery para métricas numéricas.
-    *   `docs_agent`: RAG sobre políticas y reglamentos en Cloud Storage.
-*   **Tool-use vs Sub-agentes:** Se prefieren herramientas atómicas dentro de un agente especialista. Solo se crearán sub-agentes si la lógica requiere un cambio drástico de prompt o permisos (ej: acceso a datos sensibles vs públicos).
+## 7. Estrategia de Orquestación (Router)
+*   **Triage Rápido:** `AgentRouter` utiliza `gemini-2.0-flash` para detectar intención y slots (Periodo, Estructura) sin invocar herramientas pesadas.
+*   **Specialized Hand-off:** Una vez clara la intención, se delega al `hr_agent` con el contexto ya cargado (“Hot-Start”).

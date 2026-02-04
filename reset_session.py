@@ -1,6 +1,6 @@
 import asyncio
 from app.services.firestore import get_firestore_service
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 
 async def reset_memory():
     try:

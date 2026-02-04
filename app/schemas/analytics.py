@@ -22,7 +22,7 @@ class CubeQuery(BaseModel):
 # --- METADATA ---
 
 class RequestMetadata(BaseModel):
-    requested_viz: Literal["KPI_ROW", "LINE_CHART", "BAR_CHART", "TABLE", "SMART_AUTO"] = "SMART_AUTO"
+    requested_viz: Literal["KPI_ROW", "LINE_CHART", "BAR_CHART", "PIE_CHART", "TABLE", "SMART_AUTO"] = "SMART_AUTO"
     title_suggestion: Optional[str] = None
 
 # --- MASTER INPUT PAYLOAD ---

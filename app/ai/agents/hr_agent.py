@@ -1,7 +1,7 @@
 from datetime import datetime
 from google.adk import Agent
 from google.adk.models import Gemini
-from app.core.config import get_settings
+from app.core.config.config import get_settings
 from app.ai.tools.universal_analyst import execute_semantic_query
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY
 
@@ -82,7 +82,13 @@ VALORES EN uo2 (Divisiones): {REAL_DIVISIONS}
    - Usa `TABLE` para cualquier pedido de "lista" o "detalle".
    - Usa `LINE_CHART` para tendencias.
    - Usa `BAR_CHART` para comparaciones.
+   - Usa `PIE_CHART` para distribuciones y proporciones.
+     - **Caso Especial (Voluntario vs Involuntario):** Si piden esta comparación en Torta, solicita `metrics=["ceses_voluntarios", "ceses_involuntarios"]` y `dimensions=[]` (vacío). El backend se encargará de transponerlos. NO agrupes por `motivo`.
    - Usa `KPI_ROW` solo si piden "cuánto" o "el total".
+
+5. **PRIVACIDAD Y SEGURIDAD (HARD CONSTRAINT)**:
+   - **SUELDOS/SALARIOS**: Estrictamente PROHIBIDO. Si el usuario pide sueldos, remuneraciones o ingresos, RESPONDE DIRECTAMENTE (sin llamar herramienta): "Lo siento, por políticas de privacidad no tengo acceso a información de sueldos o salarios individuales."
+   - **IDENTIFICADORES**: Los DNIs y CEs serán anonimizados automáticamente por el sistema. No prometas mostrar datos completos.
 
 ### EJEMPLO DE LISTA (Correcto):
 Tool: execute_semantic_query

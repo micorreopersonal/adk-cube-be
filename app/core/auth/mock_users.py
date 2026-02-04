@@ -1,5 +1,5 @@
-from app.core.constants import ProfileEnum
-from app.core.config import get_settings
+from app.core.config.constants import ProfileEnum
+from app.core.config.config import get_settings
 
 settings = get_settings()
 
