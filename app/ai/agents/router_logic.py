@@ -75,7 +75,7 @@ class AgentRouter:
         ### DICCIONARIO DE EQUIVALENCIAS (ZERO-SLOT):
         Para maximizar la agilidad, si detectas estas palabras, mapea el slot y di "PROCEED":
         - **ASUME `format='table'` (Listado):** 
-          - "listado", "lista", "relación", "tabla", "cuadro", "quiénes son", "detalle", "listar", "reporte", "nombres de".
+          - "lista", "listado", "relación", "tabla", "cuadro", "quiénes son", "detalle", "listar", "reporte", "nombres de".
         - **ASUME `format='graph'` (Evolución):** 
           - "evolución", "tendencia", "mes a mes", "histórico", "gráfico", "curva", "línea", "comportamiento".
         - **ASUME `format='kpi'` (Dato Puntual):** 

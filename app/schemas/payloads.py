@@ -23,9 +23,16 @@ class KPIBlock(BaseModel):
     payload: List[KPIItem]
 
 # 3. CHART BLOCK (Nexus Standard)
+class MetricFormat(BaseModel):
+    """Metadata de formato para métricas (guía al frontend en cómo renderizar)"""
+    unit_type: str = Field(..., description="Tipo de unidad: 'count', 'percentage', 'currency'")
+    symbol: Optional[str] = Field(None, description="Símbolo a mostrar: None, '%', 'S/', '$'")
+    decimals: int = Field(0, description="Número de decimales a mostrar")
+
 class Dataset(BaseModel):
     label: str
     data: List[Union[float, int, None]]
+    format: Optional[MetricFormat] = None  # Formato para esta métrica
     borderColor: Optional[str] = None
     backgroundColor: Optional[str] = None
 
@@ -47,7 +54,7 @@ class ChartBlock(BaseModel):
 # 4. TABLE BLOCK (Nexus Standard)
 class TablePayload(BaseModel):
     headers: List[str]
-    rows: List[List[Any]]
+    rows: List[Dict[str, Any]]
 
 class TableBlock(BaseModel):
     type: Literal["TABLE"] = "TABLE"

@@ -22,7 +22,7 @@ def build_analytical_query(
         metrics: Lista de keys definidas en METRICS_REGISTRY (ej: ['tasa_rotacion', 'headcount_actual'])
         dimensions: Lista de keys definidas en DIMENSIONS_REGISTRY (ej: ['uo2', 'anio'])
         filters: Diccionario de filtros {dimension: valor} o {dimension: [valores]}
-        limit: Límite de filas (default 100)
+        limit: Límite de filas (default 1000)
         
     Returns:
         str: SQL compilado listo para ejecutar en BigQuery.
@@ -56,10 +56,13 @@ def build_analytical_query(
             
         metric_def = METRICS_REGISTRY[metric_key]
         sql_expr = metric_def["sql"]
+        # Inyectar el nombre de la tabla calificado si hay subqueries en la métrica
+        if "{TABLE}" in sql_expr:
+            sql_expr = sql_expr.replace("{TABLE}", CUBE_SOURCE)
         select_items.append(f"{sql_expr} AS {metric_key}")
         
     # 2. Construcción de Filtros (WHERE)
-    where_clauses = list(MANDATORY_FILTERS) # Copia de filtros base
+    where_clauses = list(MANDATORY_FILTERS)  # Copia de filtros base
     
     if filters:
         for dim_key, value in filters.items():
@@ -93,8 +96,12 @@ def build_analytical_query(
             else:
                 # Filtro de Igualdad
                 if isinstance(value, str):
-                    # Búsqueda Flexible solo para STRINGS
-                    where_clauses.append(f"LOWER({col_sql}) LIKE LOWER('%{value}%')")
+                    # Caso especial: "MAX" para periodo (último mes cerrado dinámico)
+                    if value.upper() == "MAX" and dim_key == "periodo":
+                        where_clauses.append(f"{col_sql} = (SELECT MAX({col_sql}) FROM {CUBE_SOURCE})")
+                    else:
+                        # Coincidencia Exacta para STRINGS (case-insensitive)
+                        where_clauses.append(f"LOWER({col_sql}) = LOWER('{value}')")
                 else:
                     # Coincidencia Exacta para INT/FLOAT
                     where_clauses.append(f"{col_sql} = {value}")
@@ -111,8 +118,9 @@ WHERE
     {where_block}
 """
 
-    # Agregar GROUP BY solo si hay dimensiones
-    if group_by_indices:
+    # Agregar GROUP BY solo si hay dimensiones Y métricas (agregaciones)
+    # Para queries de solo dimensiones (LISTING), NO usar GROUP BY
+    if group_by_indices and metrics:
         group_by_block = ", ".join(group_by_indices)
         sql += f"GROUP BY {group_by_block}\n"
         

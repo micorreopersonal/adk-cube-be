@@ -82,7 +82,7 @@ END AS segmento_comparativo
 -- Se toma el stock de Activos al último día del mes ANTERIOR.
 HC_INICIAL_MES = (
     SELECT COUNT(DISTINCT codigo_persona)
-    FROM `fact_hr_rotation`
+    FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
     WHERE fecha_corte = LAST_DAY(DATE_SUB(DATE(año_consulta, mes_consulta, 1), INTERVAL 1 DAY))
     AND estado = 'Activo'
     AND NOT (LOWER(segmento) LIKE '%practicante%')
@@ -148,7 +148,7 @@ QUERY_EXAMPLES = {
             SELECT 
                 uo2, 
                 COUNT(DISTINCT codigo_persona) as hc
-            FROM `fact_hr_rotation`
+            FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
             -- HC Inicial es el cierre del mes anterior
             WHERE fecha_corte = DATE_SUB(DATE('2025-11-01'), INTERVAL 1 DAY)
             AND estado = 'Activo'
@@ -160,7 +160,7 @@ QUERY_EXAMPLES = {
                 uo2,
                 COUNT(DISTINCT codigo_persona) as total_bajas,
                 COUNT(DISTINCT IF(LOWER(motivo_cese) LIKE '%renuncia%', codigo_persona, NULL)) as bajas_voluntarias
-            FROM `fact_hr_rotation`
+            FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
             WHERE EXTRACT(YEAR FROM fecha_cese) = 2025 
             AND EXTRACT(MONTH FROM fecha_cese) = 11
             AND estado = 'Cesado'
@@ -187,12 +187,34 @@ QUERY_EXAMPLES = {
             mapeo_talento_ultimo_anio,
             motivo_cese,
             fecha_cese
-        FROM `fact_hr_rotation`
+        FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
         WHERE estado = 'Cesado'
         -- Filtro de Talento Crítico (7, 8, 9)
         AND mapeo_talento_ultimo_anio IN (7, 8, 9)
         AND EXTRACT(YEAR FROM fecha_cese) = 2025
         AND EXTRACT(MONTH FROM fecha_cese) = 11
+        ORDER BY fecha_cese DESC
+        LIMIT 100
+    """,
+
+    "LISTADO_DETALLADO_CESADOS": """
+        -- PATRÓN PARA: "quiénes son", "listar nombres", "detalle de personas", "ceses diciembre"
+        SELECT 
+            periodo,
+            uo2 as division,
+            uo3 as area,
+            nombre_completo,
+            posicion,
+            segmento,
+            mapeo_talento_ultimo_anio as talento,
+            per_anual, -- Dato directo de tabla
+            motivo_cese,
+            fecha_cese
+        FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+        WHERE uo2 = 'DIVISION SEGUROS PERSONAS' -- O la división solicitada
+        AND anio = 2025
+        AND mes = 12
+        AND estado = 'Cesado'
         ORDER BY fecha_cese DESC
         LIMIT 100
     """

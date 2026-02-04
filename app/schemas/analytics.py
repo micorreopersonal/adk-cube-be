@@ -14,7 +14,7 @@ class FilterCondition(BaseModel):
     value: Union[str, int, List[str], List[int]]
 
 class CubeQuery(BaseModel):
-    metrics: List[str] = Field(..., description="Métricas del Registry (ej: ['tasa_rotacion'])")
+    metrics: List[str] = Field(default=[], description="Métricas del Registry (ej: ['tasa_rotacion'])")
     dimensions: List[str] = Field(default=[], description="Dimensiones de agrupación")
     filters: List[FilterCondition] = Field(default=[], description="Lista de filtros explícitos")
     comparison: Optional[ComparisonConfig] = None

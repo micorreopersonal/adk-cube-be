@@ -83,7 +83,16 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
             
             # Mapear label del dataset si es mes
             ds_label = MONTH_MAP.get(str(g_val), str(g_val)) if group_dim == "mes" else str(g_val)
-            datasets.append(Dataset(label=ds_label, data=data_points))
+            
+            # Extraer formato de la métrica desde el registry
+            metric_format = None
+            if req.cube_query.metrics:
+                metric_def = METRICS_REGISTRY.get(req.cube_query.metrics[0], {})
+                if "format" in metric_def and isinstance(metric_def["format"], dict):
+                    from app.schemas.payloads import MetricFormat
+                    metric_format = MetricFormat(**metric_def["format"])
+            
+            datasets.append(Dataset(label=ds_label, data=data_points, format=metric_format))
             
     else:
         # MODO B: MULTI-MÉTRICA (Múltiples métricas como series independientes)
@@ -99,7 +108,15 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
             if m_key in df.columns:
                 m_label = METRICS_REGISTRY.get(m_key, {}).get("label", m_key)
                 data_points = df[m_key].tolist()
-                datasets.append(Dataset(label=m_label, data=data_points))
+                
+                # Extraer formato de la métrica
+                metric_format = None
+                metric_def = METRICS_REGISTRY.get(m_key, {})
+                if "format" in metric_def and isinstance(metric_def["format"], dict):
+                    from app.schemas.payloads import MetricFormat
+                    metric_format = MetricFormat(**metric_def["format"])
+                
+                datasets.append(Dataset(label=m_label, data=data_points, format=metric_format))
 
     # 3. Metadata
     # Obtener el label de la primera métrica para el eje Y
@@ -120,13 +137,13 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
     )
 
 def _format_table_block(df: pd.DataFrame) -> TableBlock:
-    """Transforma DF en Tabla."""
-    # Serializar Types no JSON
-    records = json.loads(df.to_json(orient="split", date_format="iso"))
+    """Transforma DF en Tabla (Formato Records para compatibilidad Schema)."""
+    # Serializar a Records (List[Dict]) para evitar problemas de arrays anidados
+    records = json.loads(df.to_json(orient="records", date_format="iso"))
     return TableBlock(
         payload=TablePayload(
-            headers=records["columns"],
-            rows=records["data"]
+            headers=df.columns.tolist(),
+            rows=records
         )
     )
 
@@ -142,7 +159,12 @@ def execute_semantic_query(
     Herramienta Maestra (Nexus v2.1).
     Ejecuta consultas analíticas y retorna VisualDataPackage.
     """
+    import time
+    t_start = time.time()
+    timing = {}
+    
     try:
+        t_step = time.time()
         # A. Resilience Layer: Corregir variaciones comunes del LLM antes de Pydantic
         if metadata and "requested_viz" in metadata:
             viz = str(metadata["requested_viz"]).upper()
@@ -162,11 +184,48 @@ def execute_semantic_query(
             "cube_query": cube_query,
             "metadata": metadata or {}
         }
+        
+        # --- BUSINESS RULE: HARD DEFAULT FOR LISTINGS ---
+        # Si el usuario pide lista y el LLM olvida el filtro de estado, asumimos 'Cesado'
+        # Evita mostrar activos por error en análisis de rotación.
+        import logging
+        logger = logging.getLogger("universal_analyst")
+        
+        logger.info(f"🔍 [TRACE] Intent recibido: {intent}")
+        logger.info(f"🔍 [TRACE] Filters ANTES de inyección: {cube_query.get('filters', [])}")
+        
+        if intent == "LISTING":
+            filters = cube_query.get("filters", [])
+            # Verificamos si existe filtro de 'estado' o sinónimos
+            has_state = any(str(f.get("dimension","")).lower() in ["estado", "status", "situacion"] for f in filters)
+            logger.info(f"🔍 [TRACE] Intent es LISTING. has_state={has_state}")
+            if not has_state:
+                filters.append({"dimension": "estado", "value": "Cesado"})
+                cube_query["filters"] = filters
+                logger.info(f"🔍 [TRACE] ✅ INYECTADO filtro 'Cesado'. Filters DESPUÉS: {filters}")
+            else:
+                logger.info(f"🔍 [TRACE] ⚠️ Ya existe filtro de estado, no inyectamos")
+        else:
+            logger.info(f"🔍 [TRACE] Intent NO es LISTING (es: {intent}), saltando inyección")
+        # ------------------------------------------------
+
         req = SemanticRequest(**full_payload)
         
         # 2. Construir SQL Optimizado
         filters_dict = {}
-        # ... (lógica de filtros igual) ...
+        # --- RESILIENCE: Validar intent ---
+        if req.intent not in ["COMPARISON", "TREND", "SNAPSHOT", "LISTING"]:
+            raise ValueError(f"Intent inválido: {req.intent}")
+        
+        # --- SMART LIMITS para LISTING ---
+        # Para queries de listado, limitar a 50 registros por defecto para evitar timeouts
+        if req.intent == "LISTING" and not limit:
+            limit = 50
+            logger.info(f"🔍 [TRACE] LISTING query: aplicando límite default de {limit} registros")
+        elif limit is None:
+            limit = 1000  # Default para queries de métricas
+        
+        # 2. Generar SQL (usando el Registry para validar dimensiones/métricas)
         for f in req.cube_query.filters:
             if f.dimension in filters_dict:
                 current_val = filters_dict[f.dimension]
@@ -189,20 +248,37 @@ def execute_semantic_query(
         if limit:
             query_params["limit"] = limit
 
+        timing['prep'] = time.time() - t_step
+        t_step = time.time()
+        
+        logger.info(f"🔍 [TRACE] Query params enviados a build_analytical_query: {query_params}")
         sql_query = build_analytical_query(**query_params)
-
+        logger.info(f"🔍 [TRACE] SQL generado:\n{sql_query}")
+        
+        timing['sql_gen'] = time.time() - t_step
+        t_step = time.time()
         
         # 3. Ejecutar en BigQuery
         bq = get_bq_service()
         df = bq.execute_query(sql_query)
+        
+        timing['bq_exec'] = time.time() - t_step
+        t_step = time.time()
+        logger.info(f"⏱️ [TIMING] BigQuery execution: {timing['bq_exec']:.3f}s")
         
         if df.empty:
             # Retornar paquete vacío (sin content) o con mensaje de error controlado
             return VisualDataPackage(
                 summary=f"No se encontraron datos para: {req.metadata.title_suggestion or 'Consulta'}",
                 content=[]
-            ).model_dump()
-
+            )
+        
+        # Advertencia si el resultado fue truncado (LISTING queries)
+        truncation_warning = None
+        if req.intent == "LISTING" and len(df) >= limit:
+            truncation_warning = f"⚠️ Mostrando primeros {limit} registros de un total potencialmente mayor. Usa filtros más específicos para acotar los resultados."
+            logger.warning(f"LISTING truncado: {len(df)} registros alcanzaron el límite de {limit}")
+        
         # 4. Formatear Output según Intención Visual
         blocks = []
         viz_hint = req.metadata.requested_viz
@@ -217,14 +293,37 @@ def execute_semantic_query(
         elif viz_hint == "TABLE":
             blocks.append(_format_table_block(df))
             
-        # Siempre agregar tabla de respaldo si es gráfico (opcional, por ahora no)
+        # 5. Generar Summary (con contador de registros)
+        found_count = len(df)
+        title_base = req.metadata.title_suggestion or "Análisis de Datos"
+        summary = f"{title_base} ({found_count} registros encontrados)"
         
-        return VisualDataPackage(
-            summary=req.metadata.title_suggestion or "Resultados del Análisis",
-            content=blocks
-        ).model_dump()
+        # Agregar advertencia si fue truncado
+        if truncation_warning:
+            summary = f"{summary}\n\n{truncation_warning}"
+        
+        timing['visualization'] = time.time() - t_step
+        timing['total'] = time.time() - t_start
+        
+        logger.info(f"⏱️ [TIMING BREAKDOWN] Total={timing['total']:.3f}s | Prep={timing.get('prep', 0):.3f}s | SQL_Gen={timing.get('sql_gen', 0):.3f}s | BQ_Exec={timing.get('bq_exec', 0):.3f}s | Viz={timing.get('visualization', 0):.3f}s")
+        
+        # Empaquetar
+        pkg = VisualDataPackage(
+            summary=summary,
+            content=blocks,
+            telemetry={
+                "model_turns": 1,
+                "tools_executed": ["execute_semantic_query"],
+                "api_invocations_est": 1
+            }
+        )
 
+        return pkg.model_dump()
+    
     except Exception as e:
-        # Permitir que el error suba para ser capturado por el sistema de logs o formatearlo aqui
-        # Para v2.0 preferimos fallar ruidosamente si hay error de código
-        raise e
+        logger.error(f"Error en execute_semantic_query: {e}", exc_info=True)
+        return {
+            "response_type": "visual_package",
+            "summary": f"⚠️ Error procesando consulta: {str(e)}",
+            "content": []
+        }

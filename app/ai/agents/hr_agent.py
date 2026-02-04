@@ -69,12 +69,50 @@ VALORES EN uo2 (Divisiones): {REAL_DIVISIONS}
      - `metadata`: {{ "requested_viz": "...", "title_suggestion": "..." }}
    - **IMPORTANTE**: `filters` es una LISTA de objetos `{{ "dimension": "...", "value": ... }}`. NO uses diccionarios planos.
 
-3. **Visualización (`requested_viz`)**:
-   - Usa EXACTAMENTE estos strings: `LINE_CHART`, `BAR_CHART`, `KPI_ROW`, `TABLE`, `SMART_AUTO`.
-   - TENDENCIAS: El tiempo (`mes`, `anio`) debe ser la PRIMERA dimensión. Usa `LINE_CHART`.
-   - COMPARATIVAS: La dimensión comparada (ej: `anio`) debe ser la SEGUNDA dimensión. Usa `BAR_CHART`.
+3. **Intentos (`intent`)**:
+   - `TREND`: Para evoluciones temporales (mes a mes).
+   - `COMPARISON`: Para comparar dimensiones o periodos.
+   - `LISTING`: **ÚSALO SIEMPE** que pidan "lista", "listado", "detalle", "quiénes son", "relación de personas", "nombres".
+     - **REGLA DE ORO (Contexto Rotación):** Si piden "listado de personas" o "colaboradores" SIN especificar estado, **ASUME `estado='Cesado'`**. Solo usa `Activo` si lo piden explícitamente.
+     - **Dimensiones Obligatorias**: `periodo`, `uo2`, `uo3`, `nombre_completo`, `posicion`, `segmento`, `talento`, `per_anual`, `motivo_cese`.
+     - **Métricas**: Ninguna.
+   - `SNAPSHOT`: Para una foto única de métricas (KPIs).
 
-### EJEMPLO CORRECTO:
+4. **Visualización (`requested_viz`)**:
+   - Usa `TABLE` para cualquier pedido de "lista" o "detalle".
+   - Usa `LINE_CHART` para tendencias.
+   - Usa `BAR_CHART` para comparaciones.
+   - Usa `KPI_ROW` solo si piden "cuánto" o "el total".
+
+### EJEMPLO DE LISTA (Correcto):
+Tool: execute_semantic_query
+Arguments:
+{{
+  "intent": "LISTING",
+  "cube_query": {{
+    "metrics": [],
+    "dimensions": ["periodo", "uo2", "uo3", "nombre_completo", "posicion", "segmento", "talento", "per_anual", "motivo_cese", "fecha_cese"],
+    "filters": [
+      {{"dimension": "anio", "value": 2025}},
+      {{"dimension": "mes", "value": 12}},
+      {{"dimension": "uo2", "value": "DIVISION SEGUROS PERSONAS"}},
+      {{"dimension": "estado", "value": "Cesado"}}
+    ]
+  }},
+  "metadata": {{ 
+    "requested_viz": "TABLE", 
+    "title_suggestion": "Listado Detallado de Ceses - Dic 2025" 
+  }}
+}}
+
+### REGLAS TEMPORALES CRÍTICAS:
+- **"Último mes cerrado"** o **"último período"**: Usa el valor especial `"MAX"` para la dimensión `periodo`. 
+  - Ejemplo: `{{"dimension": "periodo", "value": "MAX"}}`
+  - El sistema automáticamente consultará el `MAX(periodo)` de la tabla (el último mes con datos).
+- **TRANSPARENCIA OBLIGATORIA**: El `title_suggestion` DEBE incluir "Último Mes Cerrado" para que el usuario sepa que es dinámico.
+  - Ejemplo: "Ceses - Último Mes Cerrado"
+
+### REGLAS ADICIONALES:
 Tool: execute_semantic_query
 Arguments:
 {{
@@ -96,9 +134,18 @@ Arguments:
 
 def get_hr_agent(profile: str = "EJECUTIVO", context_state: dict = None):
     """Retorna la configuración del Agente HR Semántico (v2.1 Nexus)."""
+    
+    final_instruction = HR_PROMPT_SEMANTIC
+    if context_state:
+        context_str = "\n\n### ESTADO DETERMINADO POR TRIAJE (Prioridad Alta):\n"
+        for k, v in context_state.items():
+            context_str += f"- {k.upper()}: {v}\n"
+        context_str += "\nSI EL FORMATO ES 'TABLE', DEBES USAR INTENT='LISTING' Y REQUESTED_VIZ='TABLE'.\n"
+        final_instruction = context_str + HR_PROMPT_SEMANTIC
+
     return Agent(
         name="HR_Semantic_Agent",
-        instruction=HR_PROMPT_SEMANTIC,
+        instruction=final_instruction,
         model=get_vertex_model(),
         tools=[execute_semantic_query]
     )
