@@ -237,9 +237,35 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
     }
     subtype = subtype_map.get(str(req.metadata.requested_viz), "LINE")
     
+    
+    # 4. Heuristic: Decluttering (Scale & Focus Management)
+    # If the chart contains "Percentage" metrics (Ratios), hide/exclude "Count" metrics 
+    # to avoid plotting distinct counts (e.g. 5, 20) against ratios (5%, 15%) on the same axis.
+    # We prefer Ratios as they are usually the primary intent when both are present.
+    
+    has_ratio = any(
+        ds.format and ds.format.unit_type in ('percentage', 'ratio') 
+        for ds in datasets
+    )
+    
+    tooltip_datasets = []
+    
+    if has_ratio:
+        primary_datasets = []
+        for ds in datasets:
+            if ds.format and ds.format.unit_type in ('percentage', 'ratio'):
+                primary_datasets.append(ds)
+            else:
+                # Move Non-Ratio metrics (like Counts) to Tooltip
+                tooltip_datasets.append(ds)
+        
+        # Only switch if we found primary datasets
+        if primary_datasets:
+            datasets = primary_datasets
+
     return ChartBlock(
         subtype="BAR" if req.metadata.requested_viz == "BAR_CHART" else "LINE",
-        payload=ChartPayload(labels=labels, datasets=datasets),
+        payload=ChartPayload(labels=labels, datasets=datasets, tooltip_datasets=tooltip_datasets),
         metadata=meta
     )
 
@@ -298,41 +324,52 @@ def _format_pie_strategy(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
         show_legend=True
     )
     
+    datasets = [ds] # Initialize list for filtering logic
+
+    # 4. Heuristic: Decluttering (Scale & Focus Management)
+    # If the chart contains "Percentage" metrics (Ratios), hide/exclude "Count" metrics 
+    # to avoid plotting distinct counts (e.g. 5, 20) against ratios (5%, 15%) on the same axis.
+    # We prefer Ratios as they are usually the primary intent when both are present.
+    
+    has_ratio = any(
+        ds.format and ds.format.unit_type in ('percentage', 'ratio') 
+        for ds in datasets
+    )
+    
+    tooltip_datasets = []
+    
+    if has_ratio:
+        primary_datasets = []
+        for ds in datasets:
+            if ds.format and ds.format.unit_type in ('percentage', 'ratio'):
+                primary_datasets.append(ds)
+            else:
+                tooltip_datasets.append(ds)
+        
+        if primary_datasets:
+            datasets = primary_datasets
+
     return ChartBlock(
         subtype="PIE",
-        payload=ChartPayload(labels=labels, datasets=[ds]),
+        payload=ChartPayload(labels=labels, datasets=datasets, tooltip_datasets=tooltip_datasets),
         metadata=meta
     )
 
+from app.core.utils.formatting import format_dataframe_for_export
 from app.core.auth.security import mask_document_id, mask_salary
 
-def _format_table_block(df: pd.DataFrame) -> TableBlock:
+def _format_table_block(df: pd.DataFrame, title: str = "Detalle de Datos") -> TableBlock:
     """Transforma DF en Tabla (Formato Records para compatibilidad Schema)."""
     
-    # --- SECURITY LAYER: MASKING SENSITIVE DATA ---
-    # Aplicar máscaras a columnas sensibles antes de serializar
-    sensitive_cols = {
-        "codigo_persona": mask_document_id,
-        "dni": mask_document_id,
-        "ce": mask_document_id,
-        "salary": mask_salary,
-        "sueldo": mask_salary,
-        "remuneracion": mask_salary
-    }
-    
-    for col, masker in sensitive_cols.items():
-        if col in df.columns:
-            # Aplicar máscara y asegurar string
-            df[col] = df[col].apply(lambda x: masker(str(x)) if pd.notnull(x) else x)
-            
-    # Serializar a Records (List[Dict]) para evitar problemas de arrays anidados
-    records = json.loads(df.to_json(orient="records", date_format="iso"))
+    records = format_dataframe_for_export(df)
     return TableBlock(
         payload=TablePayload(
             headers=df.columns.tolist(),
             rows=records
-        )
+        ),
+        metadata=ChartMetadata(title=title, show_legend=False)
     )
+
 
 def _sanitize_payload(obj: Any) -> Any:
     """
@@ -346,6 +383,39 @@ def _sanitize_payload(obj: Any) -> Any:
         if math.isnan(obj) or math.isinf(obj):
             return None
     return obj
+
+
+def _generate_context_string(filters: Dict[str, Any]) -> str:
+    """Genera un string legible de los filtros aplicados para el contexto."""
+    parts = []
+    
+    # Mapeo de nombres legibles para dimensiones comunes
+    dim_labels = {
+        "uo2": "División",
+        "uo3": "Área",
+        "anio": "Año",
+        "mes": "Mes",
+        "periodo": "Periodo",
+        "estado": "Estado"
+    }
+    
+    for dim, val in filters.items():
+        label = dim_labels.get(dim, dim.capitalize())
+        
+        # Formatear valor
+        if isinstance(val, list):
+            val_str = ", ".join(str(v) for v in val)
+        elif val == "MAX":
+            val_str = "Último Cerrado"
+        else:
+            val_str = str(val)
+            
+        parts.append(f"{label}: {val_str}")
+        
+    if not parts:
+        return ""
+        
+    return " | ".join(parts)
 
 # --- MAIN EXECUTOR ---
 
@@ -440,6 +510,20 @@ def execute_semantic_query(
                 filters_dict[f.dimension] = list(set(current_val))
             else:
                 filters_dict[f.dimension] = f.value
+        
+        # --- CONTEXTUAL TITLE GENERATION ---
+        context_str = _generate_context_string(filters_dict)
+        base_title = req.metadata.title_suggestion or "Análisis de Datos"
+        
+        # Si el LLM ya puso contexto en el título, tratamos de no duplicar (heurística simple)
+        final_title = base_title
+        # Si el contexto es relevante y no parece estar ya en el título, lo agregamos
+        if context_str:
+             if " | " not in base_title: # Evitar doble barra si el LLM ya lo intentó
+                 final_title = f"{base_title} [{context_str}]"
+        
+        req.metadata.title_suggestion = final_title
+        # -----------------------------------
 
         # Usamos el limit opcional si viene, si no el default del generador (1000)
         query_params = {
@@ -493,18 +577,34 @@ def execute_semantic_query(
         # Esto asegura que 1 registro real + 1 registro zero-filled = 2 registros -> Gráfico (no KPI)
         df = _ensure_dataframe_completeness(df, req)
         
+        # --- TOTAL COUNT EXTRACTION ---
+        # Extraer el conteo total real (Window Function) antes de que el DF sea consumido
+        total_records_found = 0
+        if not df.empty and "_total_count" in df.columns:
+            total_records_found = int(df.iloc[0]["_total_count"])
+            # Limpiar columna auxiliar para que no salga en la tabla
+            df = df.drop(columns=["_total_count"])
+        elif not df.empty:
+            total_records_found = len(df)
+        # ------------------------------
+        
         if df.empty:
             # Retornar paquete vacío (sin content) o con mensaje de error controlado
-            return VisualDataPackage(
-                summary=f"No se encontraron datos para: {req.metadata.title_suggestion or 'Consulta'}",
+            pkg = VisualDataPackage(
+                summary=f"No se encontraron datos para: {req.metadata.title_suggestion}",
                 content=[]
             )
+            return pkg.model_dump()
         
         # Advertencia si el resultado fue truncado (LISTING queries)
         truncation_warning = None
-        if req.intent == "LISTING" and len(df) >= limit:
-            truncation_warning = f"⚠️ Mostrando primeros {limit} registros de un total potencialmente mayor. Usa filtros más específicos para acotar los resultados."
-            logger.warning(f"LISTING truncado: {len(df)} registros alcanzaron el límite de {limit}")
+        # Si tenemos un conteo total real > filas actuales
+        if total_records_found > len(df):
+            term = "registros"
+            truncation_warning = f"⚠️ Mostrando {len(df)} de {total_records_found} {term} encontrados."
+            # Smart Suggestion para ver todo
+            truncation_warning += f"\n💡 Para ver más, intenta ser específico: 'Dame los {total_records_found} registros de...'"
+            logger.warning(f"LISTING truncado: {len(df)} mostrados de {total_records_found} totales.")
         
         # 4. Formatear Output según Intención Visual
         blocks = []
@@ -521,14 +621,24 @@ def execute_semantic_query(
             blocks.append(_format_chart_block(df, req))
             
         elif viz_hint == "TABLE":
-            blocks.append(_format_table_block(df))
+            # Pasar título contextual al bloque de tabla
+            blocks.append(_format_table_block(df, title=final_title))
             
         # 5. Generar Summary (con contador de registros)
-        found_count = len(df)
-        title_base = req.metadata.title_suggestion or "Análisis de Datos"
-        summary = f"{title_base} ({found_count} registros encontrados)"
+        visual_count = len(df)
         
-        # Agregar advertencia si fue truncado
+        # Usamos el título enriquecido para el summary
+        summary = f"{final_title}"
+        if context_str and context_str not in summary: # Fallback por si acaso
+             summary += f"\nContexto: {context_str}"
+        
+        # Resumen de cantidad
+        if total_records_found > visual_count:
+             summary += f"\n({visual_count} listados de {total_records_found} totales)"
+        else:
+             summary += f"\n({visual_count} registros encontrados)"
+        
+        # Agregar advertencia detallada
         if truncation_warning:
             summary = f"{summary}\n\n{truncation_warning}"
         

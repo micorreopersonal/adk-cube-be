@@ -39,6 +39,7 @@ class Dataset(BaseModel):
 class ChartPayload(BaseModel):
     labels: List[str] = Field(..., description="Eje X (Categorías)")
     datasets: List[Dataset]
+    tooltip_datasets: Optional[List[Dataset]] = Field(default=[], description="Datasets auxiliares para mostrar solo en tooltips")
 
 class ChartMetadata(BaseModel):
     title: str
@@ -59,6 +60,7 @@ class TablePayload(BaseModel):
 class TableBlock(BaseModel):
     type: Literal["TABLE"] = "TABLE"
     payload: TablePayload
+    metadata: Optional[ChartMetadata] = None
 
 # 5. DEBUG BLOCKS
 class DebugBlock(BaseModel):

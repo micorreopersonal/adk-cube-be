@@ -4,6 +4,7 @@ import asyncio
 import time
 import random
 import logging
+import re
 import traceback
 from google.genai import types, Client
 from google.adk.events.event import Event
@@ -76,6 +77,9 @@ class AgentRouter:
 
         ### DICCIONARIO DE EQUIVALENCIAS (ZERO-SLOT):
         Para maximizar la agilidad, si detectas estas palabras, mapea el slot y di "PROCEED":
+        - **ASUME `format='executive_report'` (Reporte Ejecutivo):**
+          - "reporte ejecutivo", "informe ejecutivo", "executive report", "resumen ejecutivo", "dashboard ejecutivo".
+          - **IMPORTANTE:** Si detectas reporte ejecutivo, establece `structure='TOTAL'` automáticamente.
         - **ASUME `format='table'` (Listado):** 
           - "lista", "listado", "relación", "tabla", "cuadro", "quiénes son", "detalle", "listar", "reporte", "nombres de".
         - **ASUME `format='graph'` (Evolución/Comparación):** 
@@ -92,14 +96,27 @@ class AgentRouter:
         - **PROHIBIDO PREGUNTAR FORMATO:** Si el texto ya implica el formato (ej. "el listado"), **NO PREGUNTES**. Establece el slot y di "PROCEED".
         - **AGRUPACIONES:** Si el usuario dice "agrupado por X", establece `format='distribution'` si no especificó "tabla" o "listado". Pero si dijo "listado agrupado", `format='table'` manda.
         - **BYPASS:** Si el usuario dice "Analiza Finanzas 2025", llena los slots y lanza "PROCEED" en el mismo turno.
+        - **PROHIBIDO GENERAR CÓDIGO:** NUNCA generes código Python de ejemplo. Solo llama a la herramienta `process_triage_step` y responde "PROCEED".
+        - **COMPARATIVAS:** Si el usuario pide comparar métricas (ej. "total vs voluntaria vs involuntaria"), usa `structure='TOTAL'` y `format='graph'`. El agente experto se encargará de las métricas.
         
         ### EJEMPLOS DE AGILIDAD (FEW-SHOT):
         - **Usuario:** "Pásame la relación de cesados de Finanzas 2025"
-          - *Acción:* `process_triage_step(period='2025', structure='FINANZAS', format='table')` -> "PROCEED".
+          - *Acción:* Llama `process_triage_step(period='2025', structure='FINANZAS', format='table')` → Responde: "PROCEED".
         - **Usuario:** "¿Cuál es el cuadro de rotación de Marketing?"
-          - *Acción:* `process_triage_step(period='2025', structure='MARKETING', format='table')` -> "PROCEED".
+          - *Acción:* Llama `process_triage_step(period='2025', structure='MARKETING', format='table')` → Responde: "PROCEED".
         - **Usuario:** "Evolución de rotación en 2024"
-          - *Acción:* `process_triage_step(period='2024', structure='TOTAL', format='graph')` -> "PROCEED".
+          - *Acción:* Llama `process_triage_step(period='2024', structure='TOTAL', format='graph')` → Responde: "PROCEED".
+        - **Usuario:** "Gráfico comparativo de rotación total vs voluntaria vs involuntaria del 2025"
+          - *Acción:* Llama `process_triage_step(period='2025', structure='TOTAL', format='graph')` → Responde: "PROCEED".
+        - **Usuario:** "Reporte ejecutivo 2025"
+          - *Acción:* Llama `process_triage_step(period='2025', structure='TOTAL', format='executive_report')` → Responde: "PROCEED".
+        - **Usuario:** "Dame el informe ejecutivo de diciembre 2025"
+          - *Acción:* Llama `process_triage_step(period='202512', structure='TOTAL', format='executive_report')` → Responde: "PROCEED".
+
+        ### ALERTA CRÍTICA DE SISTEMA:
+        **ESTRICAMENTE PROHIBIDO GENERAR BLOQUES DE CÓDIGO (```python ...```).**
+        SI SIENTES LA NECESIDAD DE ESCRIBIR CÓDIGO, SIGNIFICA QUE DEBES LLAMAR A LA HERRAMIENTA `process_triage_step` EN SU LUGAR.
+        TU SALIDA DEBE SER EXCLUSIVAMENTE LA LLAMADA A LA TOOL Y LUEGO LA PALABRA "PROCEED".
         '''
 
     def _track_and_log_rpm(self):
@@ -112,6 +129,21 @@ class AgentRouter:
         rpm = len(AgentRouter._request_timestamps)
         self.logger.info(f"📊 [METRICS] Current RPM: {rpm} requests/min")
         return rpm
+
+    def _clean_triage_response(self, text: str) -> str:
+        """Limpia alucinaciones comunes de código en el triage."""
+        if not text: return ""
+        
+        # 1. Eliminar bloques de código markdown
+        clean = re.sub(r'```(?:python|json)?(.*?)```', r'\1', text, flags=re.DOTALL)
+        
+        # 2. Eliminar intentos de print()
+        clean = re.sub(r'print\(.*?\)', '', clean, flags=re.DOTALL)
+        
+        # 3. Eliminar llamadas a API explícitas en texto (alucinación frecuente)
+        clean = re.sub(r'default_api\.process_triage_step\(.*?\)', '', clean)
+        
+        return clean.strip()
 
     async def route(self, message: str, session_id: str = "default", profile: str = "EJECUTIVO") -> str:
         """
@@ -268,7 +300,9 @@ class AgentRouter:
                 for part in triage_response.candidates[0].content.parts:
                     if part.text:
                         triage_text += part.text
-            triage_text = triage_text.strip()
+            
+            # ---> NUEVA LÓGICA DE LIMPIEZA <---
+            triage_text = self._clean_triage_response(triage_text)
 
             if triage_text and "PROCEED" not in triage_text:
                 self.logger.info(f"[TRIAGE] Prompting for clarification: {triage_text[:50]}...")

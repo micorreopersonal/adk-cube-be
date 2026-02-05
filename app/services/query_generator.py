@@ -46,6 +46,13 @@ def build_analytical_query(
             
         select_items.append(f"{sql_expr} AS {dim_key}")
         group_by_indices.append(str(i + 1)) # SQL indices start at 1
+
+    # --- WINDOW FUNCTION OPTIMIZATION ---
+    # Si hay un límite definido (y no es infinito), calculamos el total real de registros
+    # que coinciden con los filtros, independientemente del corte.
+    if limit and limit > 0:
+        select_items.append("COUNT(*) OVER() AS _total_count")
+    # ------------------------------------
         
     # Métricas (Agregaciones)
     for metric_key in metrics:
@@ -75,20 +82,35 @@ def build_analytical_query(
                 
             col_sql = dim_def["sql"] if isinstance(dim_def, dict) else dim_def
             
+            # Determine if we should apply LOWER() based on metadata
+            use_lower = True
+            if isinstance(dim_def, dict):
+                dim_type = dim_def.get("type", "").lower()
+                dim_cat = dim_def.get("category", "").lower()
+                # Don't Lower temporal, numeric, boolean, or ratio types
+                if dim_type in ["temporal", "numeric", "ratio", "boolean", "integer", "float"] or \
+                   dim_cat in ["temporal"]:
+                    use_lower = False
+            
             if isinstance(value, list):
                 # Filtro IN (...)
                 clean_values = []
-                is_string_list = any(isinstance(v, str) for v in value)
+                # Check if values are strings for quoting, but respect column type for LOWER
                 
                 for v in value:
                     if isinstance(v, str):
-                        clean_values.append(f"LOWER('{v}')")
+                        # If forcing strings on non-lowered column, keep exact value (or assume DB handles coercion)
+                        val_str = f"'{v}'" if not v.upper() == "MAX" else v # Handle special cases if any
+                        if use_lower:
+                            clean_values.append(f"LOWER('{v}')")
+                        else:
+                            clean_values.append(f"'{v}'")
                     else:
                         clean_values.append(str(v))
                 
                 list_str = ", ".join(clean_values)
                 
-                if is_string_list:
+                if use_lower:
                     where_clauses.append(f"LOWER({col_sql}) IN ({list_str})")
                 else:
                     where_clauses.append(f"{col_sql} IN ({list_str})")
@@ -100,8 +122,10 @@ def build_analytical_query(
                     if value.upper() == "MAX" and dim_key == "periodo":
                         where_clauses.append(f"{col_sql} = (SELECT MAX({col_sql}) FROM {CUBE_SOURCE})")
                     else:
-                        # Coincidencia Exacta para STRINGS (case-insensitive)
-                        where_clauses.append(f"LOWER({col_sql}) = LOWER('{value}')")
+                        if use_lower:
+                            where_clauses.append(f"LOWER({col_sql}) = LOWER('{value}')")
+                        else:
+                            where_clauses.append(f"{col_sql} = '{value}'")
                 else:
                     # Coincidencia Exacta para INT/FLOAT
                     where_clauses.append(f"{col_sql} = {value}")
@@ -135,6 +159,9 @@ WHERE
         elif metrics:
              # Si no es temporal, pero hay métricas, ordenar por la 1ra métrica (Ranking/Pareto)
              metric_idx = len(dimensions) + 1
+             # If _total_count was injected (limit > 0), the first metric is one pos further
+             if limit and limit > 0:
+                 metric_idx += 1
              sql += f"ORDER BY {metric_idx} DESC\n"
         else:
              sql += "ORDER BY 1 ASC\n"
