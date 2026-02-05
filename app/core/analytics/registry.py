@@ -99,8 +99,25 @@ DIMENSIONS_REGISTRY = {
     "nombre_completo": {"sql": "nombre_completo", "category": "organizational", "label": "Colaborador"},
     
     # Temporales
-    "anio": {"sql": "anio", "category": "temporal", "label": "Año"},
-    "mes": {"sql": "EXTRACT(MONTH FROM periodo)", "category": "temporal", "label": "Mes"},
+    "anio": {
+        "sql": "anio", 
+        "category": "temporal", 
+        "label": "Año",
+        "type": "temporal",
+        "sorting": "numeric"
+    },
+    "mes": {
+        "sql": "EXTRACT(MONTH FROM periodo)", 
+        "category": "temporal", 
+        "label": "Mes",
+        "type": "temporal",
+        "sorting": "numeric",
+        "label_mapping": {
+            "1": "ene", "2": "feb", "3": "mar", "4": "abr",
+            "5": "may", "6": "jun", "7": "jul", "8": "ago",
+            "9": "sep", "10": "oct", "11": "nov", "12": "dic"
+        }
+    },
     "trimestre": {"sql": "EXTRACT(QUARTER FROM periodo)", "category": "temporal", "label": "Trimestre"},
     "periodo": {"sql": "periodo", "category": "temporal", "label": "Periodo"},
     "semestre": {"sql": "IF(EXTRACT(MONTH FROM periodo) <= 6, 1, 2)", "category": "temporal", "label": "Semestre"},
@@ -132,3 +149,18 @@ MANDATORY_FILTERS = [
     # Regla de Oro: Excluir practicantes
     "NOT (LOWER(segmento) LIKE '%practicante%')",
 ]
+
+# -----------------------------------------------------------------------------
+# DEFAULT FILTERS (BUSINESS RULES)
+# -----------------------------------------------------------------------------
+# Reglas por defecto según Intent. 
+# condition_missing: Solo se aplica si la dimensión NO está ya en los filtros del usuario.
+DEFAULT_FILTERS = {
+    "LISTING": [
+        {
+            "dimension": "estado", 
+            "value": "Cesado", 
+            "condition_missing": ["estado", "status", "situacion"]
+        }
+    ]
+}

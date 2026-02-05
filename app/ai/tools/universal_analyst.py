@@ -9,13 +9,18 @@ from app.schemas.payloads import (
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY
 import pandas as pd
 import json
+import math
+
+from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY, DEFAULT_FILTERS
+import pandas as pd
+import json
+import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- CONSTANTS ---
-MONTH_MAP = {
-    "1": "ene", "2": "feb", "3": "mar", "4": "abr",
-    "5": "may", "6": "jun", "7": "jul", "8": "ago",
-    "9": "sep", "10": "oct", "11": "nov", "12": "dic"
-}
+# (Removed MONTH_MAP, now in Registry)
 
 # --- HELPER FUNCTIONS ---
 
@@ -28,64 +33,61 @@ def _ensure_dataframe_completeness(df: pd.DataFrame, req: SemanticRequest) -> pd
     Estrategia: 'Zero-Filling' basado en Filtros Explícitos.
     Si el filtro es anio=[2024, 2025] y SQL solo trae 2025, inyectamos 2024=0.
     """
-    if not req.cube_query.dimensions or not req.cube_query.filters:
+    if not req.cube_query.dimensions:
         return df
 
     # 1. Identificar Eje Principal (X-Axis)
     x_dim = req.cube_query.dimensions[0] 
     
-    # 2. Verificar si hay una intención explícita de rango/lista en ese eje
-    filter_vals = None
-    for f in req.cube_query.filters:
-        if f.dimension == x_dim:
-            filter_vals = f.value
-            break
-    
-    # Si no es una lista, no hay "comparación explícita" que rellenar
-    if not isinstance(filter_vals, list):
-        return df
+    # 2. Verificar filtros y Completeness
+    if req.cube_query.filters:
+        # Verificar si hay una intención explícita de rango/lista en ese eje
+        filter_vals = None
+        for f in req.cube_query.filters:
+            if f.dimension == x_dim:
+                filter_vals = f.value
+                break
         
-    # 3. Calcular Delta (Lo que esperamos vs Lo que llegó)
-    # Normalizar a string para set operations
-    expected_keys = set(str(v) for v in filter_vals)
-    
-    if df.empty:
-        actual_keys = set()
-        # Si está vacío, necesitamos inicializar el DF con las columnas correctas
-        columns = req.cube_query.dimensions + req.cube_query.metrics
-        df = pd.DataFrame(columns=columns)
-    else:
-        actual_keys = set(df[x_dim].astype(str).unique())
-        
-    missing_keys = expected_keys - actual_keys
-    
-    if not missing_keys:
-        return df
-        
-    print(f"🧱 [MIDDLEWARE] Data Completeness: Injecting missing keys for {x_dim}: {missing_keys}")
-    
-    # 4. Inyectar Filas Faltantes (Zero-Filling)
-    new_rows = []
-    for mis in missing_keys:
-        # Intentar mantener el tipo de dato original si es posible
-        val = int(mis) if str(mis).isdigit() else mis
-        
-        row = {x_dim: val}
-        
-        # Rellenar métricas con 0
-        for m in req.cube_query.metrics:
-            row[m] = 0
+        # Si no es una lista, no hay "comparación explícita" que rellenar
+        if isinstance(filter_vals, list):
+            # 3. Calcular Delta (Lo que esperamos vs Lo que llegó)
+            expected_keys = set(str(v) for v in filter_vals)
             
-        # Otras dimensiones: "N/A" o Contextual
-        # Si hubiera otras dimensiones, quedarían como NaN o None.
-        
-        new_rows.append(row)
-    
-    df_fill = pd.DataFrame(new_rows)
-    df = pd.concat([df, df_fill], ignore_index=True)
+            if df.empty:
+                actual_keys = set()
+                # Si está vacío, necesitamos inicializar el DF con las columnas correctas
+                columns = req.cube_query.dimensions + req.cube_query.metrics
+                df = pd.DataFrame(columns=columns)
+            else:
+                actual_keys = set(df[x_dim].astype(str).unique())
+                
+            missing_keys = expected_keys - actual_keys
+            
+            if missing_keys:
+                print(f"🧱 [MIDDLEWARE] Data Completeness: Injecting missing keys for {x_dim}: {missing_keys}")
+                
+                # 4. Inyectar Filas Faltantes (Zero-Filling)
+                new_rows = []
+                for mis in missing_keys:
+                    # Intentar mantener el tipo de dato original si es posible
+                    val = int(mis) if str(mis).isdigit() else mis
+                    
+                    row = {x_dim: val}
+                    
+                    # Rellenar métricas con 0
+                    for m in req.cube_query.metrics:
+                        row[m] = 0
+                        
+                    # Otras dimensiones: "N/A" o Contextual
+                    new_rows.append(row)
+                
+                df_fill = pd.DataFrame(new_rows)
+                df = pd.concat([df, df_fill], ignore_index=True)
     
     # 5. Ordenamiento (Crucial para series temporales)
-    if x_dim in ["anio", "mes", "periodo"]:
+    # Usar metadata del registro si está disponible
+    x_meta = DIMENSIONS_REGISTRY.get(x_dim, {})
+    if x_meta.get("type") == "temporal" or x_meta.get("sorting") == "numeric":
         # Ordenar numérica o temporalmente
         try:
             df = df.sort_values(by=x_dim)
@@ -117,6 +119,7 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
     # 1. Definir Ejes
     # X Axis = Primera dimensión solicitada
     x_dim = req.cube_query.dimensions[0] if req.cube_query.dimensions else "index"
+    x_meta = DIMENSIONS_REGISTRY.get(x_dim, {})
     
     # Grouping = Segunda dimensión (si existe)
     group_dim = req.cube_query.dimensions[1] if len(req.cube_query.dimensions) > 1 else None
@@ -130,19 +133,25 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
         # Respetamos el orden que viene de SQL para las etiquetas únicas
         raw_labels = df[x_dim].astype(str).unique().tolist()
         
-        # Mapeo de meses si corresponde
-        if x_dim == "mes":
-            labels = [MONTH_MAP.get(lbl, lbl) for lbl in raw_labels]
+        if x_meta.get("label_mapping"):
+            mapping = x_meta["label_mapping"]
+            labels = [mapping.get(str(lbl), lbl) for lbl in raw_labels]
         else:
             # Data Hygiene: Replace "None" string from database with user-friendly text
             labels = ["Sin Especificar" if lbl == "None" or lbl == "nan" else lbl for lbl in raw_labels]
             
         # Generar un dataset por cada grupo
         raw_groups = df[group_dim].unique().tolist()
+        
         # Ordenar grupos (importante para que la leyenda sea consistente)
+        group_meta = DIMENSIONS_REGISTRY.get(group_dim, {})
         try:
-            # Intentar orden numérico si es posible
-            raw_groups.sort(key=lambda x: float(x) if str(x).replace('.','',1).isdigit() else str(x))
+            is_numeric = group_meta.get("sorting") == "numeric" or group_meta.get("type") == "temporal"
+            if is_numeric:
+                 # Intentar orden numérico si es posible
+                raw_groups.sort(key=lambda x: float(x) if str(x).replace('.','',1).isdigit() else str(x))
+            else:
+                raw_groups.sort(key=str)
         except:
             raw_groups.sort(key=str)
         
@@ -157,8 +166,10 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
                     y_val = 0
                 data_points.append(y_val)
             
-            # Mapear label del dataset si es mes
-            ds_label = MONTH_MAP.get(str(g_val), str(g_val)) if group_dim == "mes" else str(g_val)
+            # Mapear label del dataset si tiene mapping (ej: meses como series)
+            ds_label = str(g_val)
+            if group_meta.get("label_mapping"):
+                ds_label = group_meta["label_mapping"].get(str(g_val), str(g_val))
             
             # Extraer formato de la métrica desde el registry
             metric_format = None
@@ -174,9 +185,10 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
         # MODO B: MULTI-MÉTRICA (Múltiples métricas como series independientes)
         raw_labels = df[x_dim].astype(str).tolist() if not df.empty else []
         
-        # Mapeo de meses si corresponde
-        if x_dim == "mes":
-            labels = [MONTH_MAP.get(lbl, lbl) for lbl in raw_labels]
+        # Mapeo de valores (ej: meses)
+        if x_meta.get("label_mapping"):
+            mapping = x_meta["label_mapping"]
+            labels = [mapping.get(str(lbl), lbl) for lbl in raw_labels]
         else:
             labels = raw_labels
             
@@ -266,9 +278,12 @@ def _format_pie_strategy(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
         
         data_points = df[metric_key].tolist()
         
-        # Mapeo de meses
-        if x_dim == "mes":
-            labels = [MONTH_MAP.get(lbl, lbl) for lbl in labels]
+        # Mapeo de dimensiones (ej: meses)
+        x_meta = DIMENSIONS_REGISTRY.get(x_dim, {})
+        if x_meta.get("label_mapping"):
+             # type check for linter
+             mapping = x_meta["label_mapping"]
+             labels = [mapping.get(str(lbl), lbl) for lbl in labels]
 
     # Construir Dataset único
     # NOTA: Chart.js para Pie usa 1 dataset. Los colores son automáticos o definidos en array backgroundColor.
@@ -319,6 +334,19 @@ def _format_table_block(df: pd.DataFrame) -> TableBlock:
         )
     )
 
+def _sanitize_payload(obj: Any) -> Any:
+    """
+    Recursively replaces NaN and Infinity with None to ensure valid JSON for LLM.
+    """
+    if isinstance(obj, dict):
+        return {k: _sanitize_payload(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_payload(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+    return obj
+
 # --- MAIN EXECUTOR ---
 
 def execute_semantic_query(
@@ -361,28 +389,26 @@ def execute_semantic_query(
             "metadata": metadata or {}
         }
         
-        # --- BUSINESS RULE: HARD DEFAULT FOR LISTINGS ---
-        # Si el usuario pide lista y el LLM olvida el filtro de estado, asumimos 'Cesado'
-        # Evita mostrar activos por error en análisis de rotación.
-        import logging
-        logger = logging.getLogger("universal_analyst")
-        
-        logger.info(f"🔍 [TRACE] Intent recibido: {intent}")
-        logger.info(f"🔍 [TRACE] Filters ANTES de inyección: {cube_query.get('filters', [])}")
-        
-        if intent == "LISTING":
-            filters = cube_query.get("filters", [])
-            # Verificamos si existe filtro de 'estado' o sinónimos
-            has_state = any(str(f.get("dimension","")).lower() in ["estado", "status", "situacion"] for f in filters)
-            logger.info(f"🔍 [TRACE] Intent es LISTING. has_state={has_state}")
-            if not has_state:
-                filters.append({"dimension": "estado", "value": "Cesado"})
-                cube_query["filters"] = filters
-                logger.info(f"🔍 [TRACE] ✅ INYECTADO filtro 'Cesado'. Filters DESPUÉS: {filters}")
-            else:
-                logger.info(f"🔍 [TRACE] ⚠️ Ya existe filtro de estado, no inyectamos")
-        else:
-            logger.info(f"🔍 [TRACE] Intent NO es LISTING (es: {intent}), saltando inyección")
+        # --- BUSINESS RULE: DEFAULT FILTERS FROM REGISTRY ---
+        # Aplicar reglas de negocio definidas en Registry de forma agnóstica
+        intent_defaults = DEFAULT_FILTERS.get(intent, [])
+        if intent_defaults:
+            current_filters = cube_query.get("filters", [])
+            for rule in intent_defaults:
+                should_apply = True
+                # verificar missing conditions
+                if "condition_missing" in rule:
+                    for dim_check in rule["condition_missing"]:
+                         # Chequear si esa dimension ya existe en los filtros actuales
+                         if any(str(f.get("dimension","")).lower() == dim_check for f in current_filters):
+                             should_apply = False
+                             break
+                
+                if should_apply:
+                    logger.info(f"🔍 [TRACE] Aplicando Default Rule: {rule['dimension']}={rule['value']}")
+                    current_filters.append({"dimension": rule["dimension"], "value": rule["value"]})
+            
+            cube_query["filters"] = current_filters
         # ------------------------------------------------
 
         req = SemanticRequest(**full_payload)
@@ -442,6 +468,26 @@ def execute_semantic_query(
         t_step = time.time()
         logger.info(f"⏱️ [TIMING] BigQuery execution: {timing['bq_exec']:.3f}s")
         
+        # 3.2 Dynamic Comparison Strategy (CUBE LOGIC)
+        # Si la intención es COMPARISON, detectamos automágicamente cuál es el Eje de Series.
+        # Regla: Si hay un filtro con múltiples valores (ej: anio=[2024, 2025]), esa dimensión es la SERIE.
+        if req.intent == "COMPARISON" and len(req.cube_query.dimensions) > 1:
+            comparison_dim = None
+            # Buscar dimensión con cardinalidad > 1 en los filtros explícitos
+            for dim, val in filters_dict.items():
+                if isinstance(val, list) and len(val) > 1:
+                    comparison_dim = dim
+                    break
+            
+            # Si encontramos una dimensión de comparación y está en las dimensiones solicitadas
+            # La movemos al Index 1 (Agrupador/Series), dejando Index 0 como Eje X (ej: Mes)
+            if comparison_dim and comparison_dim in req.cube_query.dimensions:
+                # Solo reordenar si no son múltiples métricas (Multi-Metric tiene su propia estrategia)
+                if len(req.cube_query.metrics) == 1:
+                    logger.info(f"🧱 [CUBE] Detectado Eje de Comparación: {comparison_dim}. Reordenando para visualización.")
+                    req.cube_query.dimensions.remove(comparison_dim)
+                    req.cube_query.dimensions.insert(1, comparison_dim)
+
         # 3.5 Middleware de Completitud (Arquitectura Escalable)
         # Inyectar ceros para periodos/dimensiones faltantes ANTES de decidir la visualización
         # Esto asegura que 1 registro real + 1 registro zero-filled = 2 registros -> Gráfico (no KPI)
@@ -502,7 +548,7 @@ def execute_semantic_query(
             }
         )
 
-        return pkg.model_dump()
+        return _sanitize_payload(pkg.model_dump())
     
     except Exception as e:
         logger.error(f"Error en execute_semantic_query: {e}", exc_info=True)
