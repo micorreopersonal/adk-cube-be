@@ -25,7 +25,7 @@ dims_keys = list(DIMENSIONS_REGISTRY.keys())
 import json
 METRICS_LIST = "\n".join([f"- {k}: {v.get('label', k)}" for k, v in METRICS_REGISTRY.items()])
 DIMS_LIST = "\n".join([
-    f"- {k}: {v.get('label', k)} | {v.get('description', '')}" if v.get('description') else f"- {k}: {v.get('label', k)}"
+    f"- {k}: {v.get('label', k)} | {v.get('description', '')}" + (f" (Valores Permitidos [DB_VALUE: Descripcion]: {json.dumps(v.get('value_definitions'), ensure_ascii=False)})" if v.get('value_definitions') else "")
     for k, v in DIMENSIONS_REGISTRY.items()
 ])
 DEFAULT_COLS_LIST = ", ".join(DEFAULT_LISTING_COLUMNS)

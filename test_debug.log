@@ -382,3 +382,55 @@
 [2026-02-09 21:52:27.723186] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
 [2026-02-09 21:53:01.806922] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
 [2026-02-09 21:53:01.808277] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-10 15:43:52.241677] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 15:43:52.242774] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 15:44:17.981980] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-10 15:44:17.981980] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-10 16:36:06.935440] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:36:06.935973] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:36:17.840962] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-10 16:36:17.841483] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-10 16:43:14.935291] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:43:14.936855] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:43:46.774900] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:43:46.775989] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:44:14.372157] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-10 16:44:14.372717] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-10 16:46:16.755516] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:46:16.756027] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:46:53.930339] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:46:53.930339] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:47:18.667077] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:47:18.667634] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:47:40.445843] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:47:40.446431] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:48:01.240369] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:48:01.241408] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:49:38.102874] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:49:38.103448] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:51:48.060949] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:51:48.060949] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:52:14.879219] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:52:14.880254] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:52:30.058324] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:52:30.059319] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:57:02.889380] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:57:02.890384] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 16:57:10.466881] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 16:57:10.467951] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:04:14.135411] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:04:14.135411] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:07:53.144216] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:07:53.145222] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:11:41.777934] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:11:41.778569] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:12:27.559777] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:12:27.560289] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:13:06.612064] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:13:06.614080] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:37:12.253261] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:37:12.253810] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:57:33.165933] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:57:33.167348] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-10 17:58:50.737908] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-10 17:58:50.739057] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'

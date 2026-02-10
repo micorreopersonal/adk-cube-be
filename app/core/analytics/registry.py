@@ -92,11 +92,43 @@ DIMENSIONS_REGISTRY = {
     # Organizacionales
     "uo2": {"sql": "uo2", "category": "organizational", "label": "División"},
     "division": {"sql": "uo2", "category": "organizational", "label": "División"}, # Alias
-    "uo3": {"sql": "uo3", "category": "organizational", "label": "Área"},
-    "area": {"sql": "uo3", "category": "organizational", "label": "Área"}, # Alias
-    "uo4": {"sql": "uo4", "category": "organizational", "label": "UO4"},
-    "uo5": {"sql": "uo5", "category": "organizational", "label": "UO5"},
-    "uo6": {"sql": "uo6", "category": "organizational", "label": "UO6"},
+    "uo3": {
+        "sql": "uo3", 
+        "category": "organizational", 
+        "label": "Tipo Canal / UO3",
+        "description": "Tipo de Canal (Directo vs Indirecto) o Área General.",
+        "value_definitions": {
+            "CANALES DIRECTOS": "Canales Directos",
+            "CANALES INDIRECTOS": "Canales Indirectos",
+            "SEGUROS PERSONAS": "División Seguros Personas"
+        }
+    },
+    "tipo_canal": {"sql": "uo3", "category": "organizational", "label": "Tipo Canal"}, # Alias
+
+    "uo4": {
+        "sql": "uo4", 
+        "category": "organizational", 
+        "label": "Canal (Detalle) / UO4",
+        "description": "Canal de Venta específico. Usar para 'Corte por Canal'.",
+        "value_definitions": {
+            "FFVV MULTIPRODUCTO": "Fuerza de Ventas Vida (FFVV Multiproducto)",
+            "FFVV CONVENIOS": "Fuerza de Ventas Convenios",
+            "FFVV VIDA": "Fuerza de Ventas Vida",
+            "FFVV RENTAS": "Fuerza de Ventas Rentas",
+            "FFVV PROSPEROUS": "Fuerza de Ventas Prosperous",
+            "FFVV DIRECTA": "Fuerza de Ventas Directa",
+            "CANAL VIP": "Canal VIP",
+            "BANCASEGUROS Y ALIANZAS": "Bancaseguros",
+            "CORREDORES": "Corredores",
+            "TIENDA RIMAC": "Tienda Rimac",
+            "GESTION Y SOLUCIONES DE PAGO": "Gestión y Soluciones de Pago",
+            "EXPANSION GEOGRAFICA": "Expansión Geográfica",
+            "BBVA": "Canal BBVA",
+            "EXCELENCIA Y TRANSFORMACION": "Excelencia y Transformación"
+        }
+    },
+    "canal": {"sql": "uo4", "category": "organizational", "label": "Canal"}, # Alias Principal para 'Canal'
+    "canal_detalle": {"sql": "uo4", "category": "organizational", "label": "Canal (Detalle)"}, # Alias
     "posicion": {"sql": "posicion", "category": "organizational", "label": "Posición"},
     "nombre": {"sql": "nombre_completo", "category": "organizational", "label": "Colaborador"},
     "nombre_completo": {"sql": "nombre_completo", "category": "organizational", "label": "Colaborador"},
