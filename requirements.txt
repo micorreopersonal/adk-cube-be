@@ -26,3 +26,4 @@ db-dtypes
 #Cloud Run
 gunicorn; sys_platform != 'win32'
 uvloop; sys_platform != 'win32'
+tenacity

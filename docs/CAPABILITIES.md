@@ -42,6 +42,13 @@ Este documento resume las capacidades actuales del backend del proyecto **People
     *   **Smart Visualization**: Auto-selecciona la mejor visualización (`KPI_ROW`, `LINE_CHART`, `BAR_CHART`, `TABLE`) basada en la naturaleza de los datos.
     *   **Corrección de Errores**: Capa de resiliencia para corregir alucinaciones comunes del LLM antes de ejecutar.
 
+### **Reportes Inteligentes**
+*   **Reporte Ejecutivo de Rotación**:
+    *   **Generación Orquestada**: Secuencia de 7 bloques analíticos (Headline, Segmentación, Focos, Talento, etc.).
+    *   **Context-Aware AI**: Los insights generados por el LLM reciben datos reales extraídos en memoria de los gráficos y tablas (no "ciegos").
+    *   **Comparativas Automáticas**: Cálculo de variaciones vs promedio anual o peridos anteriores.
+    *   **Generación Modular (Atomic Testing)**: Capacidad de generar secciones aisladas (ej. solo "segmentation") para refinamiento rápido de prompts.
+
 ---
 
 ## 3. Servicios de Datos (Músculo)
@@ -73,3 +80,23 @@ Este documento resume las capacidades actuales del backend del proyecto **People
     *   `/chat`: Endpoint principal para interacción con agentes.
     *   Integración preparada para Frontend moderno.
 *   **Observabilidad**: Logs detallados de Tiempos de Ejecución (Timing Breakdown) y costos estimados (Tokens/Slots).
+
+---
+
+## 5. Ejemplos de Consultas (Demo Script)
+
+### 🟢 Básicas (Atómicas)
+1.  **KPI Global**: *"¿Cuál es la tasa de rotación acumulada en 2025?"*
+2.  **Filtro por División**: *"Dime los ceses totales en Finanzas."*
+3.  **Métrica Calculada**: *"¿Cuál es el costo estimado de rotación en Tecnología?"*
+4.  **Drill-down**: *"¿Cuántos ceses voluntarios hubo en Enero 2025?"*
+
+### 🟡 Intermedias (Listados y Segmentos)
+1.  **Listado Detallado**: *"Dame la lista de colaboradores cesados en Q1 2025."*
+2.  **Filtro Compuesto**: *"¿Quiénes son los HiPo que renunciaron en 2025?"*
+3.  **Comparativa Simple**: *"Comparar rotación entre Fuerza de Ventas y Administrativos."*
+
+### 🔴 Avanzadas (Tendencias y Análisis Crítico)
+1.  **Tendencia Temporal**: *"Grafica la evolución mensual de la rotación voluntaria en el último año."*
+2.  **Reporte Ejecutivo (Full Context)**: *"Genera el reporte ejecutivo de Marzo 2025."* (Inyecta datos en IA para análisis de causas).
+3.  **Comparativa Multidimensional**: *"Muéstrame la rotación por División ordenado de mayor a menor."*

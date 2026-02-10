@@ -1,0 +1,971 @@
+{
+  "response_type": "visual_package",
+  "summary": "Reporte Ejecutivo de Rotación - Año 2025",
+  "content": [
+    {
+      "type": "text",
+      "payload": "Reporte Ejecutivo de Rotación - Año 2025",
+      "variant": "h2",
+      "severity": "info"
+    },
+    {
+      "type": "text",
+      "payload": "1. Insight Crítico",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "text",
+      "payload": "[AI Narrative Unavailable]",
+      "variant": "insight",
+      "severity": "info"
+    },
+    {
+      "type": "KPI_ROW",
+      "payload": [
+        {
+          "label": "Tasa de Rotación Global (%)",
+          "value": 25.965073529411764,
+          "delta": null,
+          "status": "NEUTRAL",
+          "tooltip": "Porcentaje de salidas respecto al total de activos en el periodo."
+        },
+        {
+          "label": "Total Ceses",
+          "value": 1130.0,
+          "delta": null,
+          "status": "NEUTRAL",
+          "tooltip": "Cantidad absoluta de bajas en el periodo."
+        },
+        {
+          "label": "Headcount Promedio",
+          "value": 2176.0,
+          "delta": null,
+          "status": "NEUTRAL",
+          "tooltip": "Promedio simple (Inicial + Final) / 2."
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "payload": "2. Segmentación (ADMIN vs FFVV)",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "CHART",
+      "subtype": "BAR",
+      "payload": {
+        "labels": [
+          "Fuerza de Ventas",
+          "Administrativo"
+        ],
+        "datasets": [
+          {
+            "label": "Tasa de Rotación Global (%)",
+            "data": [
+              40.656121851200936,
+              16.428033157498113
+            ],
+            "format": {
+              "unit_type": "percentage",
+              "symbol": "%",
+              "decimals": 2
+            },
+            "borderColor": null,
+            "backgroundColor": null
+          }
+        ],
+        "tooltip_datasets": [
+          {
+            "label": "Total Ceses",
+            "data": [
+              694,
+              436
+            ],
+            "format": {
+              "unit_type": "count",
+              "symbol": null,
+              "decimals": 0
+            },
+            "borderColor": null,
+            "backgroundColor": null
+          }
+        ]
+      },
+      "metadata": {
+        "title": "Rotación por Segmento [Año: 2025]",
+        "y_axis_label": "Tasa de Rotación Global (%)",
+        "show_legend": true
+      }
+    },
+    {
+      "type": "text",
+      "payload": "[AI Narrative Unavailable]",
+      "variant": "standard",
+      "severity": "info"
+    },
+    {
+      "type": "text",
+      "payload": "3. Resumen de Rotación Voluntaria",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "text",
+      "payload": "En 2025, la rotación voluntaria (14.8%) supera significativamente la involuntaria (11.2%), representando el 56.8% del total. La DIVISION INVERSIONES (20.59%) y la DIVISION SEGUROS PERSONAS (17.3%) son las áreas más críticas en cuanto a renuncias.",
+      "variant": "standard",
+      "severity": "info"
+    },
+    {
+      "type": "CHART",
+      "subtype": "PIE",
+      "payload": {
+        "labels": [
+          "Tasa de Rotación Voluntaria (%)",
+          "Tasa de Rotación Involuntaria (%)"
+        ],
+        "datasets": [
+          {
+            "label": "Distribución",
+            "data": [
+              14.79779411764706,
+              11.236213235294118
+            ],
+            "format": null,
+            "borderColor": null,
+            "backgroundColor": null
+          }
+        ],
+        "tooltip_datasets": []
+      },
+      "metadata": {
+        "title": "Distribución Voluntaria vs Involuntaria [Año: 2025]",
+        "y_axis_label": null,
+        "show_legend": true
+      }
+    },
+    {
+      "type": "text",
+      "payload": "3.1 Focos de Concentración (Top Divisiones)",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "TABLE",
+      "payload": {
+        "headers": [
+          "uo2",
+          "tasa_rotacion_voluntaria",
+          "ceses_voluntarios"
+        ],
+        "rows": [
+          {
+            "uo2": "DIVISION INVERSIONES",
+            "tasa_rotacion_voluntaria": 20.59,
+            "ceses_voluntarios": 7
+          },
+          {
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "tasa_rotacion_voluntaria": 17.3,
+            "ceses_voluntarios": 462
+          },
+          {
+            "uo2": "AUDITORIA INTERNA",
+            "tasa_rotacion_voluntaria": 15.38,
+            "ceses_voluntarios": 2
+          },
+          {
+            "uo2": "DIVISION TRANSFORMACION",
+            "tasa_rotacion_voluntaria": 11.82,
+            "ceses_voluntarios": 26
+          },
+          {
+            "uo2": "DIVISION RIESGOS",
+            "tasa_rotacion_voluntaria": 10.91,
+            "ceses_voluntarios": 6
+          }
+        ]
+      },
+      "metadata": {
+        "title": "Focos de Rotación Voluntaria (Top 5) [Año: 2025]",
+        "y_axis_label": null,
+        "show_legend": false
+      }
+    },
+    {
+      "type": "text",
+      "payload": "4. Alerta de Talento Clave",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "text",
+      "payload": "**ALERTA: Fuga de Talento Clave en Enero 2025**\n\nSe identificaron 5 bajas de talento HiPo/HiPer en diversas divisiones (Marketing, Salud, Seguros Empresas, Tecnología). La pérdida de estos empleados (diseñador UI, supervisor, ejecutivo comercial, ingeniero de riesgo, gestor comercial) impacta negativamente la productividad y la innovación. Urge investigar las causas de las renuncias y el despido.",
+      "variant": "critical",
+      "severity": "info"
+    },
+    {
+      "type": "TABLE",
+      "payload": {
+        "headers": [
+          "periodo",
+          "uo2",
+          "uo3",
+          "nombre_completo",
+          "posicion",
+          "segmento",
+          "talento",
+          "per_anual",
+          "motivo_cese",
+          "fecha_cese"
+        ],
+        "rows": [
+          {
+            "periodo": "202501",
+            "uo2": "DIVISION MARKETING Y ESTRATEGIA",
+            "uo3": "GROWTH DIGITAL",
+            "nombre_completo": "GUTIERREZ MACHUCA SHEYLA FIORELLA",
+            "posicion": "UI PRODUCT DESIGNER SPECIALIST",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 12.8,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-01-03"
+          },
+          {
+            "periodo": "202501",
+            "uo2": "DIVISION SALUD",
+            "uo3": "TRIBU SEGUROS SALUD",
+            "nombre_completo": "CRUCHAGA CACERES JOHANNA",
+            "posicion": "SUPERVISOR SINIESTROS SALUD",
+            "segmento": "EMPLEADO",
+            "talento": "HiPo",
+            "per_anual": -30.3,
+            "motivo_cese": "DESPIDO",
+            "fecha_cese": "2025-01-17"
+          },
+          {
+            "periodo": "202501",
+            "uo2": "DIVISION SEGUROS EMPRESAS",
+            "uo3": "TRIBU CORPORATIVA",
+            "nombre_completo": "MUÑOZ DIAZ ELIANA ALEXANDRA",
+            "posicion": "EJECUTIVO COMERCIAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPo",
+            "per_anual": 44.44,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-01-31"
+          },
+          {
+            "periodo": "202501",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "SEGURIDAD DE LA INFORMACION",
+            "nombre_completo": "OCHOA DIAZ RICARDO ANDRES",
+            "posicion": "RISK ENGINEER PROFESSIONAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 12.0,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-01-15"
+          },
+          {
+            "periodo": "202501",
+            "uo2": "DIVISION SEGUROS EMPRESAS",
+            "uo3": "CORREDORES ESTRATEGICOS",
+            "nombre_completo": "DUTHURBURU GUZMAN ALEJANDRO",
+            "posicion": "GESTOR COMERCIAL",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 48.48,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-01-10"
+          },
+          {
+            "periodo": "202501",
+            "uo2": "DIVISION SEGUROS EMPRESAS",
+            "uo3": "SUSCRIPCION RIESGOS PATRIMONIALES",
+            "nombre_completo": "COELLO TORRES WALTHER KEVIN",
+            "posicion": "INGENIERO",
+            "segmento": "EMPLEADO",
+            "talento": "HiPo",
+            "per_anual": 60.0,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-01-22"
+          },
+          {
+            "periodo": "202501",
+            "uo2": "DIVISION FINANZAS",
+            "uo3": "REASEGUROS Y COASEGUROS",
+            "nombre_completo": "CONISLLA CACERES LUZ MARIA",
+            "posicion": "ANALISTA SR REASEGUROS CONTRATOS",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 55.56,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-01-31"
+          },
+          {
+            "periodo": "202502",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "GROWTH DIGITAL",
+            "nombre_completo": "MALCA CASTAÑEDA ELIZABETH GINA",
+            "posicion": "UI PRODUCT DESIGNER SPECIALIST",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 24.0,
+            "motivo_cese": "DESPIDO O DESTITUCIÓN",
+            "fecha_cese": "2025-02-07"
+          },
+          {
+            "periodo": "202502",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "DESARROLLO TI",
+            "nombre_completo": "MENDOZA ARDILES PEDRO JESUS",
+            "posicion": "EXPERTO DE APLICACIONES",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 39.39,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-02-24"
+          },
+          {
+            "periodo": "202502",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "GROWTH DIGITAL",
+            "nombre_completo": "MINCHAN CLAVO ERICK RODRIGO",
+            "posicion": "UI EXPERT",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": -44.9,
+            "motivo_cese": "DESPIDO O DESTITUCIÓN",
+            "fecha_cese": "2025-02-07"
+          },
+          {
+            "periodo": "202502",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "GROWTH DIGITAL",
+            "nombre_completo": "QUISPE CARBAJAL LAURA LISBETH",
+            "posicion": "UI PRODUCT DESIGNER EXPERT",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": -28.57,
+            "motivo_cese": "DESPIDO O DESTITUCIÓN",
+            "fecha_cese": "2025-02-11"
+          },
+          {
+            "periodo": "202502",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "GROWTH DIGITAL",
+            "nombre_completo": "VELA CAVIEDES BLANCA ROSA MORAYMA",
+            "posicion": "UX STRATEGY EXPERT",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": -26.53,
+            "motivo_cese": "DESPIDO O DESTITUCIÓN",
+            "fecha_cese": "2025-02-07"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION FINANZAS",
+            "uo3": "BUSINESS CONTROL PERSONAS",
+            "nombre_completo": "RODRIGO MENDOZA CARLOS ALBERTO",
+            "posicion": "SUBGERENTE PLANEAMIENTO CONTROL GESTION",
+            "segmento": "SUB-GERENTE",
+            "talento": "HiPo",
+            "per_anual": 47.83,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-27"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "DESARROLLO TI",
+            "nombre_completo": "MANCINI HERENCIA NICOLE JANET",
+            "posicion": "CORE SYSTEM DEVELOPER PROFESSIONAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 27.27,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-11"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "TRIBU DATA",
+            "nombre_completo": "PISCO OSTOS TABITA",
+            "posicion": "DATA ENGINEER PROFESSIONAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPo",
+            "per_anual": 60.15,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-25"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION FINANZAS",
+            "uo3": "PLANEAMIENTO Y ADMINISTRACION",
+            "nombre_completo": "LINARES AQUIZE FERNANDA",
+            "posicion": "ANALISTA PLANEAMIENTO FINANCIERO",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 60.0,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-22"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION RIESGOS",
+            "uo3": "RIESGOS OPERACIONALES Y CONTINUIDAD",
+            "nombre_completo": "GOMEZ VILLANUEVA MARIA CLAUDIA",
+            "posicion": "GESTOR CONTINUIDAD DEL NEGOCIO",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 51.52,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-22"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "TRIBU VIDA",
+            "nombre_completo": "FREYRE PEREZ MECHY",
+            "posicion": "GERENTE DE AGENCIA",
+            "segmento": "EMPLEADO FFVV",
+            "talento": "HiPer",
+            "per_anual": 1267.97,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-04"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "CRM Y ADVANCED ANALYTICS",
+            "nombre_completo": "MARQUEZ MAUTINO KEY ERICK",
+            "posicion": "DATA SCIENTIST PROFESSIONAL",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 43.18,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-01"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "OPERACIONES TI",
+            "nombre_completo": "DE SOUZA CASTRO JESUS",
+            "posicion": "JEFE OPERACIONES TI",
+            "segmento": "JEFE",
+            "talento": "HiPo",
+            "per_anual": 76.79,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-11"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "CRM Y ADVANCED ANALYTICS",
+            "nombre_completo": "NUÑEZ EFFIO CLAUDIA MARIA ISABEL",
+            "posicion": "ANALISTA PLANIFICACION COMERCIAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPo",
+            "per_anual": 120.0,
+            "motivo_cese": "FALTA GRAVE",
+            "fecha_cese": "2025-04-16"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION SALUD",
+            "uo3": "TRIBU SEGUROS SALUD",
+            "nombre_completo": "GROSSO SANDOVAL MARTHA TERESA LUCIA",
+            "posicion": "SMT LEAD SEGUROS SALUD",
+            "segmento": "GERENTE",
+            "talento": "HiPer",
+            "per_anual": 91.41,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-30"
+          },
+          {
+            "periodo": "202504",
+            "uo2": "DIVISION SALUD",
+            "uo3": "TRIBU SEGUROS SALUD",
+            "nombre_completo": "KU SOU LINDA ALEXANDRA",
+            "posicion": "BUSINESS DEVELOPER SPECIALIST",
+            "segmento": "EMPLEADO",
+            "talento": "HiPo",
+            "per_anual": 42.24,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-04-04"
+          },
+          {
+            "periodo": "202505",
+            "uo2": "DIVISION SEGUROS EMPRESAS",
+            "uo3": "TRIBU CORPORATIVA",
+            "nombre_completo": "CARPIO NIETO VERONICA",
+            "posicion": "JEFE SEGUROS DEL ESTADO",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 81.82,
+            "motivo_cese": "DESPIDO O DESTITUCIÓN",
+            "fecha_cese": "2025-05-15"
+          },
+          {
+            "periodo": "202506",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "SEGURIDAD DE LA INFORMACION",
+            "nombre_completo": "CONTRERAS PEDRESCHI JESUS CARLOS ADOLFO",
+            "posicion": "JEFE INGENIERIA SEGURIDAD DE LA INFORMAC",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 113.04,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-06-22"
+          },
+          {
+            "periodo": "202506",
+            "uo2": "DIVISION SALUD",
+            "uo3": "TRIBU SEGUROS SALUD",
+            "nombre_completo": "VELASQUEZ ROBATTY ANTUANET",
+            "posicion": "PRICING ANALYST PROFESSIONAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 55.31,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-06-06"
+          },
+          {
+            "periodo": "202506",
+            "uo2": "DIVISION SEGUROS EMPRESAS",
+            "uo3": "SINIESTROS RIESGOS PATRIMONIALES",
+            "nombre_completo": "SALDIVAR ALARCON JOSE LEONCIO",
+            "posicion": "JEFE DE SINIESTROS",
+            "segmento": "JEFE",
+            "talento": "HiPo",
+            "per_anual": 49.11,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-06-01"
+          },
+          {
+            "periodo": "202506",
+            "uo2": "DIVISION INVERSIONES",
+            "uo3": "ESTRATEGIA DE INVERSION",
+            "nombre_completo": "BARLETTI CIER ANDREA",
+            "posicion": "JEFE ESTRATEGIA DE INVERSION",
+            "segmento": "JEFE",
+            "talento": "HiPo",
+            "per_anual": 42.24,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-06-30"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "DESARROLLO TI",
+            "nombre_completo": null,
+            "posicion": "EXPERTO DE APLICACIONES",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 72.73,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-07-11"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "DESARROLLO TI",
+            "nombre_completo": null,
+            "posicion": "TECHNICAL TRIBE LEAD SR",
+            "segmento": "SUB-GERENTE",
+            "talento": "HiPo",
+            "per_anual": 117.39,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-07-23"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "CAPACIDADES",
+            "nombre_completo": null,
+            "posicion": "DATA OFFICER",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 84.85,
+            "motivo_cese": "DESPIDO O DESTITUCIÓN",
+            "fecha_cese": "2025-07-07"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "DESARROLLO TI",
+            "nombre_completo": null,
+            "posicion": "BACKEND DEVELOPER EXPERT",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 17.81,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-07-15"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "TRIBU TI",
+            "nombre_completo": null,
+            "posicion": "ESPECIALISTA DE PROYECTOS TI",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 48.48,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-07-18"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "TRIBU TI",
+            "nombre_completo": null,
+            "posicion": "TECHNICAL TRIBE LEAD",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 37.8,
+            "motivo_cese": "DESPIDO O DESTITUCIÓN",
+            "fecha_cese": "2025-07-04"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "TRIBU VIDA",
+            "nombre_completo": null,
+            "posicion": "BUSINESS DEVELOPER EXPERT",
+            "segmento": "JEFE",
+            "talento": "HiPo",
+            "per_anual": 15.91,
+            "motivo_cese": "FALTA GRAVE",
+            "fecha_cese": "2025-07-15"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION SALUD",
+            "uo3": "TRIBU SEGUROS SALUD",
+            "nombre_completo": null,
+            "posicion": "ANALISTA SR BUSINESS INTELLIGENCE",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 18.52,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-07-30"
+          },
+          {
+            "periodo": "202507",
+            "uo2": "DIVISION FINANZAS",
+            "uo3": "REASEGUROS Y COASEGUROS",
+            "nombre_completo": null,
+            "posicion": "ANALISTA SR REASEGUROS CONTRATOS",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 0.0,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-07-11"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "SEGMENTO",
+            "nombre_completo": null,
+            "posicion": "CUSTOMER DEVELOPER SPECIALIST",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 7.69,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-31"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION SEGUROS EMPRESAS",
+            "uo3": "TRIBU EMPRESAS",
+            "nombre_completo": null,
+            "posicion": "GESTOR COMERCIAL",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 36.36,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-31"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "SEGMENTO",
+            "nombre_completo": null,
+            "posicion": "SERVICE DESIGNER SPECIALIST",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": -21.32,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-25"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION TECNOLOGIA",
+            "uo3": "DESARROLLO TI",
+            "nombre_completo": null,
+            "posicion": "FRONT END WEB EXPERT",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 0.0,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-15"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "PRICING",
+            "nombre_completo": null,
+            "posicion": "PRICING ANALYTICS ANALYST",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 84.85,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-31"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION SEGUROS EMPRESAS",
+            "uo3": "TRIBU EMPRESAS",
+            "nombre_completo": null,
+            "posicion": "EJECUTIVO COMERCIAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 48.15,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-15"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION RIESGOS",
+            "uo3": "CUMPLIMIENTO",
+            "nombre_completo": null,
+            "posicion": "GESTOR DE CUMPLIMIENTO",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 51.52,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-13"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "BBVA",
+            "nombre_completo": null,
+            "posicion": "SUBGERENTE DESARROLLO E IMPLEMENTACION",
+            "segmento": "SUB-GERENTE",
+            "talento": "HiPer",
+            "per_anual": 89.39,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-11"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION RIESGOS",
+            "uo3": "RIESGOS MERCADO Y CREDITO",
+            "nombre_completo": null,
+            "posicion": "GESTOR RIESGOS MERCADO",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 51.52,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-05"
+          },
+          {
+            "periodo": "202508",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "RIMAC X",
+            "nombre_completo": null,
+            "posicion": "DIGITAL PRODUCT STRATEGIST PROFESSIONAL",
+            "segmento": "EMPLEADO",
+            "talento": "HiPer",
+            "per_anual": 37.0,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-08-22"
+          },
+          {
+            "periodo": "202509",
+            "uo2": "DIVISION TALENTO",
+            "uo3": "TRANSFORMACION ORGANIZACIONAL",
+            "nombre_completo": null,
+            "posicion": "AGILE TEAM COACH SPECIALIST",
+            "segmento": "JEFE",
+            "talento": "HiPer",
+            "per_anual": 82.86,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-09-30"
+          },
+          {
+            "periodo": "202509",
+            "uo2": "DIVISION TRANSFORMACION",
+            "uo3": "CAPACIDADES",
+            "nombre_completo": null,
+            "posicion": "DATA SCIENTIST LEAD",
+            "segmento": "SUB-GERENTE",
+            "talento": "HiPo",
+            "per_anual": 77.27,
+            "motivo_cese": "RENUNCIA",
+            "fecha_cese": "2025-09-30"
+          },
+          {
+            "periodo": "202509",
+            "uo2": "DIVISION SEGUROS PERSONAS",
+            "uo3": "BBVA",
+            "nombre_completo": null,
+            "posicion": "JEFE COMERCIAL",
+            "segmento": "JEFE",
+            "talento": "HiPo",
+            "per_anual": 39.39,
+            "motivo_cese": "FALTA GRAVE",
+            "fecha_cese": "2025-09-01"
+          }
+        ]
+      },
+      "metadata": {
+        "title": "Fuga de Talento Crítico (Detalle) [Año: 2025 | Talento: HiPo, HiPer | Estado: Cesado]",
+        "y_axis_label": null,
+        "show_legend": false
+      }
+    },
+    {
+      "type": "text",
+      "payload": "5. Tabla Comparativa (vs. Promedio Periodo)",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "TABLE",
+      "payload": {
+        "headers": [
+          "Indicador",
+          "Periodo Actual",
+          "Contexto (Avg/Total)",
+          "Var"
+        ],
+        "rows": [
+          {
+            "Indicador": "HC Activo Promedio",
+            "Periodo Actual": "0",
+            "Contexto (Avg/Total)": "0",
+            "Var %": "N/A"
+          },
+          {
+            "Indicador": "Ceses Totales",
+            "Periodo Actual": "0",
+            "Contexto (Avg/Total)": "0",
+            "Var %": "N/A"
+          },
+          {
+            "Indicador": "Tasa Rotación (%)",
+            "Periodo Actual": "0.00%",
+            "Contexto (Avg/Total)": "0.00%",
+            "Var Pts": "+0.00 pts"
+          }
+        ]
+      },
+      "metadata": null
+    },
+    {
+      "type": "text",
+      "payload": "6. Evolución del Periodo",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "text",
+      "payload": "[AI Narrative Unavailable]",
+      "variant": "standard",
+      "severity": "info"
+    },
+    {
+      "type": "CHART",
+      "subtype": "LINE",
+      "payload": {
+        "labels": [
+          "ene",
+          "feb",
+          "mar",
+          "abr",
+          "may",
+          "jun",
+          "jul",
+          "ago",
+          "sep",
+          "oct",
+          "nov",
+          "dic"
+        ],
+        "datasets": [
+          {
+            "label": "Tasa de Rotación Global (%)",
+            "data": [
+              2.60471664906723,
+              2.8193525931082495,
+              2.4632227163872735,
+              3.118712273641851,
+              3.068712474983322,
+              2.9585798816568047,
+              2.5906735751295336,
+              2.639019792648445,
+              2.659413720157147,
+              4.253365973072215,
+              2.83363802559415,
+              4.65625
+            ],
+            "format": {
+              "unit_type": "percentage",
+              "symbol": "%",
+              "decimals": 2
+            },
+            "borderColor": null,
+            "backgroundColor": null
+          },
+          {
+            "label": "Tasa de Rotación Voluntaria (%)",
+            "data": [
+              1.9359380499824004,
+              1.6359206404455273,
+              1.4710913445090659,
+              2.04560697518444,
+              1.6344229486324215,
+              1.9066403681788298,
+              1.6839378238341969,
+              1.7907634307257305,
+              2.0247809005741915,
+              1.8971848225214198,
+              1.5539305301645339,
+              1.375
+            ],
+            "format": {
+              "unit_type": "percentage",
+              "symbol": "%",
+              "decimals": 2
+            },
+            "borderColor": null,
+            "backgroundColor": null
+          }
+        ],
+        "tooltip_datasets": []
+      },
+      "metadata": {
+        "title": "Evolución - Año 2025 [Año: 2025]",
+        "y_axis_label": "Tasa de Rotación Global (%)",
+        "show_legend": true
+      }
+    },
+    {
+      "type": "text",
+      "payload": "7. Conclusión Estratégica",
+      "variant": "h3",
+      "severity": "info"
+    },
+    {
+      "type": "text",
+      "payload": "[AI Narrative Unavailable]",
+      "variant": "insight",
+      "severity": "info"
+    }
+  ]
+}

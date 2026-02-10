@@ -1,147 +1,384 @@
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=Trend, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=Trend, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=Trend, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=Trend, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=Trend, Dims=['periodo']
-TEST DEBUG: Titles Found: ['Rotación por Segmento', 'Detalle de Fuga de Hipers/Hipos']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=Trend, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=Trend, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['tipo_empleado']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=COMPARISON, Dims=['grupo_segmento']
-MOCK CALL: Intent=COMPARISON, Dims=['uo2']
-MOCK CALL: Intent=LISTING, Dims=['nombre', 'posicion', 'uo2', 'talento', 'motivo']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
-MOCK CALL: Intent=TREND, Dims=['periodo']
-MOCK CALL: Intent=TREND, Dims=['periodo', 'segmento']
-MOCK CALL: Intent=SNAPSHOT, Dims=[]
+[2026-02-09 19:22:10.797861] 🚀 Module executive_report_stream.py reloaded
+[2026-02-09 19:22:17.071681] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 19:22:17.073253] MAIN: 🚀 executive_report_stream loaded from: C:\adk-projects\adk-people-analytics-backend\app\ai\tools\executive_report_stream.py
+[2026-02-09 19:22:21.987316] 🚀 Module executive_report_stream.py reloaded
+[2026-02-09 19:22:26.360504] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 19:22:26.361052] MAIN: 🚀 executive_report_stream loaded from: C:\adk-projects\adk-people-analytics-backend\app\ai\tools\executive_report_stream.py
+[2026-02-09 19:23:01.388568] 🚀 Module executive_report_stream.py reloaded
+[2026-02-09 19:23:06.091710] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 19:23:06.092307] MAIN: 🚀 executive_report_stream loaded from: C:\adk-projects\adk-people-analytics-backend\app\ai\tools\executive_report_stream.py
+[2026-02-09 19:24:33.389155] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 19:24:33.390717] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 19:25:20.944424] 
+🔍 [DEBUG] Starting extraction for Headline section...
+[2026-02-09 19:25:21.961149]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 4.65625
+[2026-02-09 19:25:21.961823]       ✅ MATCH Found for 'Ceses': Total Ceses = 149.0
+[2026-02-09 19:25:21.961823]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 1600.0
+[2026-02-09 19:25:21.962828]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 2.83363802559415
+[2026-02-09 19:25:21.963331]       ✅ MATCH Found for 'Ceses': Total Ceses = 93.0
+[2026-02-09 19:25:21.963331]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 1641.0
+[2026-02-09 19:25:21.963331]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 25.965073529411764
+[2026-02-09 19:25:21.964337]       ✅ MATCH Found for 'Ceses': Total Ceses = 1130.0
+[2026-02-09 19:25:21.964337]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 2176.0
+[2026-02-09 19:25:21.964841] 🔍 [AI-PAYLOAD] FINAL PAYLOAD FOR AI: {"headline_actual": {"tasa": 4.65625, "ceses": 149.0, "hc": 1600.0}, "headline_prev": {"tasa": 2.83363802559415, "ceses": 93.0, "hc": 1641.0}, "annual_stats": {"tasa_avg": 25.965073529411764, "ceses_total_range": 1130.0, "hc_avg": 2176.0}, "_cache_buster": "2026-02-09 19:25:21.964841"}
+[2026-02-09 19:25:21.964841] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Diciembre 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 4.65625, 'ceses': 149.0, 'hc': 1600.0}
+        - Anterior: {'tasa': 2.83363802559415, 'ceses': 93.0, 'hc': 1641.0}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total_range': 1130.0, 'hc_avg': 2176.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 19:25:21.964841
+        
+
+[2026-02-09 19:25:26.232916] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 19:26:51.171585] 
+🔍 [DEBUG] Starting extraction for Headline section...
+[2026-02-09 19:26:52.154455]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 25.965073529411764
+[2026-02-09 19:26:52.155625]       ✅ MATCH Found for 'Ceses': Total Ceses = 1130.0
+[2026-02-09 19:26:52.155625]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 2176.0
+[2026-02-09 19:26:52.156663]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 24.258836944127708
+[2026-02-09 19:26:52.156663]       ✅ MATCH Found for 'Ceses': Total Ceses = 851.0
+[2026-02-09 19:26:52.156663]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 1754.0
+[2026-02-09 19:26:52.156663]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 25.965073529411764
+[2026-02-09 19:26:52.156663]       ✅ MATCH Found for 'Ceses': Total Ceses = 1130.0
+[2026-02-09 19:26:52.156663]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 2176.0
+[2026-02-09 19:26:52.156663] 🔍 [AI-PAYLOAD] FINAL PAYLOAD FOR AI: {"headline_actual": {"tasa": 25.965073529411764, "ceses": 1130.0, "hc": 2176.0}, "headline_prev": {"tasa": 24.258836944127708, "ceses": 851.0, "hc": 1754.0}, "annual_stats": {"tasa_avg": 25.965073529411764, "ceses_total_range": 1130.0, "hc_avg": 2176.0}, "_cache_buster": "2026-02-09 19:26:52.156663"}
+[2026-02-09 19:26:52.159173] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Año 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 25.965073529411764, 'ceses': 1130.0, 'hc': 2176.0}
+        - Anterior: {'tasa': 24.258836944127708, 'ceses': 851.0, 'hc': 1754.0}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total_range': 1130.0, 'hc_avg': 2176.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 19:26:52.156663
+        
+
+[2026-02-09 19:26:58.499810] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 19:27:40.281236] 🚀 Module executive_report_stream.py reloaded
+[2026-02-09 19:27:45.365626] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 19:27:45.365626] MAIN: 🚀 executive_report_stream loaded from: C:\adk-projects\adk-people-analytics-backend\app\ai\tools\executive_report_stream.py
+[2026-02-09 19:28:13.547566] 🚀 Module executive_report_stream.py reloaded
+[2026-02-09 19:28:18.588969] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 19:28:18.588969] MAIN: 🚀 executive_report_stream loaded from: C:\adk-projects\adk-people-analytics-backend\app\ai\tools\executive_report_stream.py
+[2026-02-09 19:28:34.247975] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 19:28:34.247975] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 19:29:03.529770] 
+🔍 [DEBUG] Starting extraction for Headline section...
+[2026-02-09 19:30:24.454638] 🚀 Module executive_report_stream.py reloaded
+[2026-02-09 19:30:29.523522] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 19:30:29.523522] MAIN: 🚀 executive_report_stream loaded from: C:\adk-projects\adk-people-analytics-backend\app\ai\tools\executive_report_stream.py
+[2026-02-09 19:31:00.129519] 
+🔍 [DEBUG] Starting extraction for Headline section...
+[2026-02-09 19:31:01.114409]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 25.965073529411764
+[2026-02-09 19:31:01.115031]       ✅ MATCH Found for 'Ceses': Total Ceses = 1130.0
+[2026-02-09 19:31:01.115567]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 2176.0
+[2026-02-09 19:31:01.115567]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 24.258836944127708
+[2026-02-09 19:31:01.116572]       ✅ MATCH Found for 'Ceses': Total Ceses = 851.0
+[2026-02-09 19:31:01.116572]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 1754.0
+[2026-02-09 19:31:01.116572]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 25.965073529411764
+[2026-02-09 19:31:01.117750]       ✅ MATCH Found for 'Ceses': Total Ceses = 1130.0
+[2026-02-09 19:31:01.118330]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 2176.0
+[2026-02-09 19:31:01.118330] 🔍 [AI-PAYLOAD] FINAL PAYLOAD FOR AI: {"headline_actual": {"tasa": 25.965073529411764, "ceses": 1130.0, "hc": 2176.0}, "headline_prev": {"tasa": 24.258836944127708, "ceses": 851.0, "hc": 1754.0}, "annual_stats": {"tasa_avg": 25.965073529411764, "ceses_total_range": 1130.0, "hc_avg": 2176.0}, "_cache_buster": "2026-02-09 19:31:01.118330"}
+[2026-02-09 19:31:01.118330] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Año 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 25.965073529411764, 'ceses': 1130.0, 'hc': 2176.0}
+        - Anterior: {'tasa': 24.258836944127708, 'ceses': 851.0, 'hc': 1754.0}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total_range': 1130.0, 'hc_avg': 2176.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 19:31:01.118330
+        
+
+[2026-02-09 19:31:05.696844] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 19:32:55.440842] 
+🔍 [DEBUG] Starting extraction for Headline section...
+[2026-02-09 19:32:56.453307]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 4.65625
+[2026-02-09 19:32:56.453307]       ✅ MATCH Found for 'Ceses': Total Ceses = 149.0
+[2026-02-09 19:32:56.454312]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 1600.0
+[2026-02-09 19:32:56.454312]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 2.83363802559415
+[2026-02-09 19:32:56.454312]       ✅ MATCH Found for 'Ceses': Total Ceses = 93.0
+[2026-02-09 19:32:56.454312]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 1641.0
+[2026-02-09 19:32:56.455736]       ✅ MATCH Found for 'Tasa': Tasa de Rotación Global (%) = 25.965073529411764
+[2026-02-09 19:32:56.455736]       ✅ MATCH Found for 'Ceses': Total Ceses = 1130.0
+[2026-02-09 19:32:56.456741]       ✅ MATCH Found for 'Headcount': Headcount Promedio = 2176.0
+[2026-02-09 19:32:56.456741] 🔍 [AI-PAYLOAD] FINAL PAYLOAD FOR AI: {"headline_actual": {"tasa": 4.65625, "ceses": 149.0, "hc": 1600.0}, "headline_prev": {"tasa": 2.83363802559415, "ceses": 93.0, "hc": 1641.0}, "annual_stats": {"tasa_avg": 25.965073529411764, "ceses_total_range": 1130.0, "hc_avg": 2176.0}, "_cache_buster": "2026-02-09 19:32:56.456741"}
+[2026-02-09 19:32:56.456741] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Diciembre 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 4.65625, 'ceses': 149.0, 'hc': 1600.0}
+        - Anterior: {'tasa': 2.83363802559415, 'ceses': 93.0, 'hc': 1641.0}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total_range': 1130.0, 'hc_avg': 2176.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 19:32:56.456741
+        
+
+[2026-02-09 19:33:01.473649] 🤖 [DEBUG AI RESPONSE]: La rotación en diciembre de 2025 ha aumentado significativamente a 4.66% desde el 2.83% del mes anterior, superando considerablemente el promedio anual. Este incremento sustancial, reflejado en un mayor número de ceses, indica una situación crítica que requiere una investigación y acción inmediata para identificar y abordar las causas subyacentes.
+
+[2026-02-09 19:43:25.930184] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Enero 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 2.60471664906723, 'ceses': 74.0, 'hc': 1420.5}
+        - Anterior: {'tasa': 2.7728403839317455, 'ceses': 78.0, 'hc': 1406.5}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 19:43:25.928723
+        
+
+[2026-02-09 19:43:29.968209] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 19:54:46.664757] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 19:54:46.665321] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 19:54:52.679114] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 19:54:52.679622] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 19:57:47.304126] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Enero 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 2.60471664906723, 'ceses': 74.0, 'hc': 1420.5}
+        - Anterior: {'tasa': 2.7728403839317455, 'ceses': 78.0, 'hc': 1406.5}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 19:57:47.303066
+        
+
+[2026-02-09 19:57:51.319667] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 20:07:17.515666] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Enero 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 2.60471664906723, 'ceses': 74.0, 'hc': 1420.5}
+        - Anterior: {'tasa': 2.7728403839317455, 'ceses': 78.0, 'hc': 1406.5}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 20:07:17.514476
+        
+
+[2026-02-09 20:07:22.788845] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 20:08:27.149269] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Enero 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 2.60471664906723, 'ceses': 74.0, 'hc': 1420.5}
+        - Anterior: {'tasa': 2.7728403839317455, 'ceses': 78.0, 'hc': 1406.5}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 20:08:27.148258
+        
+
+[2026-02-09 20:08:32.569084] 🤖 [DEBUG AI RESPONSE]: La rotación global disminuyó ligeramente a 2.60% en enero, comparado con el 2.77% del mes anterior. Sin embargo, proyectando esta tasa, podríamos superar significativamente el promedio anual del 25.97%. Aunque la baja es positiva, la situación requiere monitoreo constante para evitar un aumento descontrolado a lo largo del año.
+
+[2026-02-09 20:09:55.318291] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Enero 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 2.60471664906723, 'ceses': 74.0, 'hc': 1420.5}
+        - Anterior: {'tasa': 2.7728403839317455, 'ceses': 78.0, 'hc': 1406.5}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 20:09:55.317033
+        
+
+[2026-02-09 20:09:59.835038] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 20:11:15.561312] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Enero 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 2.60471664906723, 'ceses': 74.0, 'hc': 1420.5}
+        - Anterior: {'tasa': 2.7728403839317455, 'ceses': 78.0, 'hc': 1406.5}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 20:11:15.560001
+        
+
+[2026-02-09 20:11:23.496352] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 20:12:50.528450] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Enero 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 2.60471664906723, 'ceses': 74.0, 'hc': 1420.5}
+        - Anterior: {'tasa': 2.7728403839317455, 'ceses': 78.0, 'hc': 1406.5}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 20:12:50.527277
+        
+
+[2026-02-09 20:12:55.686160] 🤖 [DEBUG AI RESPONSE]: [AI Narrative Unavailable]
+
+[2026-02-09 20:15:52.961024] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 20:15:52.962508] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 20:22:02.316443] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 20:22:02.317635] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 20:22:49.365040] 🤖 [DEBUG AI PROMPT] Critical Insight:
+
+        Actúa como un Consultor Senior de RRHH. Analiza los KPI de Rotación para Año 2025 | Global.
+        
+        Datos:
+        - Actual: {'tasa': 25.965073529411764, 'ceses': 1130.0, 'hc': 2176.0}
+        - Anterior: {'tasa': 24.258836944127708, 'ceses': 851.0, 'hc': 1754.0}
+        - Promedios Anuales: {'tasa_avg': 25.965073529411764, 'ceses_total': 1130.0}
+        
+        Escribe un párrafo ejecutivo (max 60 palabras) que resalte:
+        1. La tendencia principal (alza/baja) vs mes anterior.
+        2. Cómo estamos respecto al promedio anual.
+        3. Si es crítico o estable.
+        
+        Formato: Texto plano, directo. Sin saludos.
+        
+        [Cache Buster]: 2026-02-09 20:22:49.362153
+        
+
+[2026-02-09 20:22:54.963900] 🤖 [DEBUG AI RESPONSE]: La rotación aumentó significativamente respecto al mes anterior (24.26% vs 25.97%). La tasa actual coincide con el promedio anual. Este incremento, aunque alineado con el promedio, requiere atención para identificar las causas y evitar una tendencia al alza sostenida. La situación es estable, pero con señales de alerta.
+
+[2026-02-09 20:54:16.532284] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 20:54:16.532284] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 20:54:52.419903] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 20:54:52.421430] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 20:56:15.266611] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 20:56:15.268214] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 20:56:15.636593] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 20:56:15.639255] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 20:58:57.279595] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 20:58:57.280608] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 20:59:26.744602] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 20:59:26.745166] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 20:59:37.064066] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 20:59:37.065135] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:00:38.814532] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:00:38.815075] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:01:21.821220] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:01:21.821941] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:02:26.332590] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:02:26.334241] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:03:16.475928] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 21:03:16.475928] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 21:07:23.684418] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:07:23.684418] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:08:20.394712] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 21:08:20.396653] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 21:14:01.220245] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:14:01.221782] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:14:18.910961] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:14:18.912178] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:15:07.866145] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:15:07.868847] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:16:32.069994] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 21:16:32.071533] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 21:26:31.076925] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:26:31.077939] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:26:42.004069] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:26:42.006721] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:27:48.356076] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 21:27:48.357663] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 21:40:48.702417] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:40:48.702986] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:43:26.631867] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 21:43:26.633401] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 21:49:55.160680] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:49:55.161811] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:50:06.477819] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 21:50:06.479588] MAIN: ✅ [LOGIN SUCCESS] User: admin
+[2026-02-09 21:52:27.721638] MAIN: 🚀 API Entrypoint main.py loaded. CWD: C:\adk-projects\adk-people-analytics-backend
+[2026-02-09 21:52:27.723186] MAIN: ❌ Failed to import ers: No module named 'app.ai.tools.executive_report_stream'
+[2026-02-09 21:53:01.806922] MAIN: 🔐 [LOGIN ATTEMPT] User: admin
+[2026-02-09 21:53:01.808277] MAIN: ✅ [LOGIN SUCCESS] User: admin

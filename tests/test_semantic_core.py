@@ -24,7 +24,7 @@ def test_build_query_basic():
     assert "SAFE_DIVIDE" in query  # Tasa de rotación usa safe_divide
     assert "anio = 2025" in query or "anio = '2025'" in query
     # Regla de Oro (Security Filter)
-    assert "NOT (LOWER(segmento) LIKE '%practicante%')" in query
+    assert "segmento != 'PRACTICANTE'" in query
 
 def test_build_query_complex_filters():
     """Verifica filtros complejos (listas, IN clauses)."""

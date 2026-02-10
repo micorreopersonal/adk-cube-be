@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+import logging
 
 from app.core.config.config import get_settings
 from app.schemas.chat import ChatRequest, ChatResponse, Token, TokenData, ResetSessionRequest
@@ -10,6 +11,8 @@ from app.ai.agents.router_logic import get_router
 from app.services.bigquery import get_bq_service
 from app.services.storage import get_storage_service
 from app.services.firestore import get_firestore_service
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 # Instanciamos el router lógico (Orquestador de IA)
@@ -33,6 +36,11 @@ async def health_check():
 
 @api_router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    # DEBUG LOGIN
+    from app.main import log_debug
+    logger.info(f"🔐 [LOGIN ATTEMPT] User: {form_data.username}")
+    log_debug(f"🔐 [LOGIN ATTEMPT] User: {form_data.username}")
+
     # Limpiar inputs (Trim whitespace) para evitar errores de capa 8
     username_clean = form_data.username.strip()
     password_clean = form_data.password.strip()
@@ -40,12 +48,23 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     # Validación contra "Base de Datos" de Mock Users
     user_db = get_user(username_clean)
     
-    if not user_db or user_db["password"] != password_clean:
-         raise HTTPException(
+    if not user_db:
+        log_debug(f"❌ [LOGIN FAIL] User not found: {username_clean}")
+        raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if user_db["password"] != password_clean:
+        log_debug(f"❌ [LOGIN FAIL] Password mismatch for: {username_clean}. Expected: {user_db['password']}, Got: {password_clean}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales incorrectas",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    log_debug(f"✅ [LOGIN SUCCESS] User: {username_clean}")
     
     # Crear token incluyendo el perfil del usuario validado
     access_token = create_access_token(
@@ -112,17 +131,10 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
                 "content": [{"type": "text", "payload": response_text}]
             }
 
-    # Determinar el texto de respuesta (Legacy support)
     final_response_text = ""
     if isinstance(response_text, dict):
-        # Intentar extraer texto del payload si existe
-        if "content" in response_text:
-             for block in response_text["content"]:
-                 if block["type"] == "text":
-                     final_response_text += block["payload"] + "\n"
-        
-        if not final_response_text:
-            final_response_text = "Se han generado datos visuales. Revisa el componente interactivo."
+        # Usar el summary del paquete si existe, sino un default
+        final_response_text = response_text.get("summary", "Se han generado datos visuales.")
     else:
         final_response_text = response_text
 
@@ -201,3 +213,6 @@ async def test_firestore():
         return {"status": "success", "saved": test_data, "retrieved": retrieved}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+# Force reload

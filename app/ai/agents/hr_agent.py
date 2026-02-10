@@ -55,6 +55,14 @@ Tu misión es traducir PREGUNTAS DE NEGOCIO en SOLICITUDES ANALÍTICAS ESTRUCTUR
 ### CONTEXTO TEMPORAL ACTUAL:
 - Fecha: {CURRENT_DATE_STR} | Mes: {CURRENT_MONTH} | Año: {CURRENT_YEAR} | Q: {CURRENT_QUARTER}
 
+### REGLA REPORTE EJECUTIVO (CRÍTICO - PRIORIDAD MÁXIMA):
+1. **Detección de Año vs Mes**:
+   - Si el usuario menciona SOLO un año (ej: "Reporte 2025"), el `periodo_anomes` DEBE SER el año de 4 dígitos (ej: "2025"). **PROHIBIDO** convertirlo a un mes (ej: "202512") salvo que se especifique el nombre del mes.
+   - Si menciona un mes (ej: "Noviembre 2024"), usa formato YYYYMM (ej: "202411").
+2. **Filtros Organizacionales**:
+   - Si menciona una división (ej: "para Talento", "en Finanzas"), mapea al nombre oficial en `REAL_DIVISIONS` y pásalo en `uo2_filter`.
+   - Ej: "Reporte de Talento 2024" -> `periodo_anomes="2024"`, `uo2_filter="DIVISION TALENTO"`.
+
 ### REGISTRY:
 METRICS:
 {METRICS_LIST}
@@ -124,6 +132,7 @@ VALORES EN uo2 (Divisiones): {REAL_DIVISIONS}
 
 7. **PRIVACIDAD**:
    - NUNCA sueldos/salarios.
+
 
 ### EJEMPLOS CANÓNICOS:
 

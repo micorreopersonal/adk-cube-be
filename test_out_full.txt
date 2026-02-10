@@ -1,0 +1,190 @@
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] Query params enviados a build_analytical_query: {'metrics': ['tasa_rotacion', 'ceses_totales', 'headcount_promedio'], 'dimensions': [], 'filters': {'periodo': '202501'}, 'limit': 1000}
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] SQL generado:
+
+SELECT 
+    COUNT(*) OVER() AS _total_count,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion,
+    COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END) AS ceses_totales,
+    
+        (
+             (
+                SELECT COUNT(DISTINCT codigo_persona) 
+                FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation` 
+                WHERE fecha_corte = DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)
+                AND estado = 'Activo'
+             ) +
+             COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)
+        ) / 2
+         AS headcount_promedio
+FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+WHERE 
+    segmento != 'PRACTICANTE' AND 
+    FORMAT_DATE('%Y%m', periodo) = '202501'
+ORDER BY 1 DESC
+LIMIT 1000
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING] BigQuery execution: 5.317s
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING BREAKDOWN] Total=5.344s | Prep=0.000s | SQL_Gen=0.024s | BQ_Exec=5.317s | Viz=0.003s
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] Query params enviados a build_analytical_query: {'metrics': ['tasa_rotacion', 'ceses_totales', 'headcount_promedio'], 'dimensions': [], 'filters': {'periodo': '202412'}, 'limit': 1000}
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] SQL generado:
+
+SELECT 
+    COUNT(*) OVER() AS _total_count,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion,
+    COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END) AS ceses_totales,
+    
+        (
+             (
+                SELECT COUNT(DISTINCT codigo_persona) 
+                FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation` 
+                WHERE fecha_corte = DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)
+                AND estado = 'Activo'
+             ) +
+             COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)
+        ) / 2
+         AS headcount_promedio
+FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+WHERE 
+    segmento != 'PRACTICANTE' AND 
+    FORMAT_DATE('%Y%m', periodo) = '202412'
+ORDER BY 1 DESC
+LIMIT 1000
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING] BigQuery execution: 3.664s
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING BREAKDOWN] Total=3.668s | Prep=0.000s | SQL_Gen=0.000s | BQ_Exec=3.664s | Viz=0.004s
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] Query params enviados a build_analytical_query: {'metrics': ['tasa_rotacion', 'ceses_totales', 'headcount_promedio'], 'dimensions': [], 'filters': {'anio': 2025}, 'limit': 1000}
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] SQL generado:
+
+SELECT 
+    COUNT(*) OVER() AS _total_count,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion,
+    COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END) AS ceses_totales,
+    
+        (
+             (
+                SELECT COUNT(DISTINCT codigo_persona) 
+                FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation` 
+                WHERE fecha_corte = DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)
+                AND estado = 'Activo'
+             ) +
+             COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)
+        ) / 2
+         AS headcount_promedio
+FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+WHERE 
+    segmento != 'PRACTICANTE' AND 
+    anio = 2025
+ORDER BY 1 DESC
+LIMIT 1000
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING] BigQuery execution: 3.437s
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING BREAKDOWN] Total=3.440s | Prep=0.000s | SQL_Gen=0.001s | BQ_Exec=3.437s | Viz=0.003s
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] Query params enviados a build_analytical_query: {'metrics': ['tasa_rotacion', 'ceses_totales'], 'dimensions': ['grupo_segmento'], 'filters': {'periodo': '202501'}, 'limit': 1000}
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] SQL generado:
+
+SELECT 
+    
+            CASE 
+                WHEN segmento = 'EMPLEADO FFVV' THEN 'Fuerza de Ventas'
+                WHEN segmento = 'PRACTICANTE' THEN 'Practicante'
+                ELSE 'Administrativo'
+            END
+         AS grupo_segmento,
+    COUNT(*) OVER() AS _total_count,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion,
+    COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END) AS ceses_totales
+FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+WHERE 
+    segmento != 'PRACTICANTE' AND 
+    FORMAT_DATE('%Y%m', periodo) = '202501'
+GROUP BY 1
+ORDER BY 3 DESC
+LIMIT 1000
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING] BigQuery execution: 3.353s
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING BREAKDOWN] Total=3.356s | Prep=0.000s | SQL_Gen=0.000s | BQ_Exec=3.353s | Viz=0.004s
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] Query params enviados a build_analytical_query: {'metrics': ['tasa_rotacion_voluntaria', 'tasa_rotacion_involuntaria'], 'dimensions': [], 'filters': {'periodo': '202501'}, 'limit': 1000}
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] SQL generado:
+
+SELECT 
+    COUNT(*) OVER() AS _total_count,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' AND LOWER(motivo_cese) LIKE '%renuncia%' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion_voluntaria,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' AND LOWER(motivo_cese) NOT LIKE '%renuncia%' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion_involuntaria
+FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+WHERE 
+    segmento != 'PRACTICANTE' AND 
+    FORMAT_DATE('%Y%m', periodo) = '202501'
+ORDER BY 1 DESC
+LIMIT 1000
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING] BigQuery execution: 3.793s
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING BREAKDOWN] Total=3.801s | Prep=0.000s | SQL_Gen=0.000s | BQ_Exec=3.793s | Viz=0.007s
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] LISTING query: aplicando límite default de 50 registros
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] Query params enviados a build_analytical_query: {'metrics': [], 'dimensions': ['periodo', 'uo2', 'uo3', 'nombre_completo', 'posicion', 'segmento', 'talento', 'per_anual', 'motivo_cese', 'fecha_cese'], 'filters': {'periodo': '202501', 'talento': ['HiPo', 'HiPer'], 'estado': 'Cesado'}, 'limit': 50}
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] SQL generado:
+
+SELECT 
+    FORMAT_DATE('%Y%m', periodo) AS periodo,
+    uo2 AS uo2,
+    uo3 AS uo3,
+    nombre_completo AS nombre_completo,
+    posicion AS posicion,
+    segmento AS segmento,
+    
+            CASE 
+                WHEN mapeo_talento_ultimo_anio = 7 THEN 'HiPer'
+                WHEN mapeo_talento_ultimo_anio IN (8, 9) THEN 'HiPo'
+                ELSE 'Regular'
+            END
+         AS talento,
+    per_anual AS per_anual,
+    motivo_cese AS motivo_cese,
+    fecha_cese AS fecha_cese,
+    COUNT(*) OVER() AS _total_count
+FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+WHERE 
+    segmento != 'PRACTICANTE' AND 
+    FORMAT_DATE('%Y%m', periodo) = '202501' AND 
+    LOWER(
+            CASE 
+                WHEN mapeo_talento_ultimo_anio = 7 THEN 'HiPer'
+                WHEN mapeo_talento_ultimo_anio IN (8, 9) THEN 'HiPo'
+                ELSE 'Regular'
+            END
+        ) IN (LOWER('HiPo'), LOWER('HiPer')) AND 
+    LOWER(estado) = LOWER('Cesado')
+ORDER BY 1 ASC
+LIMIT 50
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING] BigQuery execution: 3.393s
+C:\adk-projects\adk-people-analytics-backend\app\core\utils\formatting.py:54: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_datetime without passing `errors` and catch exceptions explicitly instead
+  df[col] = pd.to_datetime(df[col], errors='ignore')
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING BREAKDOWN] Total=3.402s | Prep=0.000s | SQL_Gen=0.001s | BQ_Exec=3.393s | Viz=0.008s
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] Query params enviados a build_analytical_query: {'metrics': ['tasa_rotacion', 'tasa_rotacion_voluntaria'], 'dimensions': ['mes'], 'filters': {'anio': 2025}, 'limit': 1000}
+INFO:app.ai.tools.universal_analyst:🔍 [TRACE] SQL generado:
+
+SELECT 
+    EXTRACT(MONTH FROM periodo) AS mes,
+    COUNT(*) OVER() AS _total_count,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion,
+    SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN estado = 'Cesado' AND LOWER(motivo_cese) LIKE '%renuncia%' THEN codigo_persona END), COUNT(DISTINCT CASE WHEN estado = 'Activo' THEN codigo_persona END)) * 100 AS tasa_rotacion_voluntaria
+FROM `adk-sandbox-486117.data_set_historico_ceses.fact_hr_rotation`
+WHERE 
+    segmento != 'PRACTICANTE' AND 
+    anio = 2025
+GROUP BY 1
+ORDER BY 1 ASC
+LIMIT 1000
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING] BigQuery execution: 3.355s
+INFO:app.ai.tools.universal_analyst:⏱️ [TIMING BREAKDOWN] Total=3.360s | Prep=0.000s | SQL_Gen=0.000s | BQ_Exec=3.355s | Viz=0.005s
+INFO:app.ai.tools.executive_insights:🔄 Attempting AI insight generation...
+INFO:google_genai.models:AFC is enabled with max remote calls: 10.
+INFO:app.ai.tools.executive_insights:🔄 Attempting AI insight generation...
+INFO:google_genai.models:AFC is enabled with max remote calls: 10.
+INFO:httpx:HTTP Request: POST https://us-central1-aiplatform.googleapis.com/v1beta1/projects/adk-sandbox-486117/locations/us-central1/publishers/google/models/gemini-2.0-flash-exp:generateContent "HTTP/1.1 429 Too Many Requests"
+ERROR:app.ai.tools.executive_insights:Error generating insight: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.', 'status': 'RESOURCE_EXHAUSTED'}}
+INFO:app.ai.tools.executive_insights:✨ Insight Cache Hit! (Key: 45f932d1...)
+INFO:app.ai.tools.executive_insights:✨ Insight Cache Hit! (Key: 5b0b4881...)
+INFO:httpx:HTTP Request: POST https://us-central1-aiplatform.googleapis.com/v1beta1/projects/adk-sandbox-486117/locations/us-central1/publishers/google/models/gemini-2.0-flash-exp:generateContent "HTTP/1.1 429 Too Many Requests"
+ERROR:app.ai.tools.executive_insights:Error generating insight: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.', 'status': 'RESOURCE_EXHAUSTED'}}
+🚀 Testing Simplified Orchestrator 2025...
+✅ Success! Response Type: visual_package
+📊 Summary: Reporte Ejecutivo de Rotación para Enero 2025 | Global
+🧱 Block Count: 14
+🤖 AI Insights Found: 2
+   - Insight 1: [AI Narrative Unavailable]...
+   - Insight 2: **ALERTA:** En enero 2025, se identificó la fuga d...

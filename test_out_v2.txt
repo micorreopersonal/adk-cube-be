@@ -1,0 +1,6 @@
+﻿🚀 Testing Simplified Orchestrator 2025...
+✅ Success! Response Type: visual_package
+📊 Summary: Reporte Ejecutivo de Rotación - ID: 45fe98e3-bfdd-4b12-a414-727f1c3ac55b
+🧱 Block Count: 9
+🤖 AI Insights Found: 1
+   - Insight 1: Generando resumen......

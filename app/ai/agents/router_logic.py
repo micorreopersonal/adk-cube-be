@@ -31,7 +31,7 @@ class AgentRouter:
         
         # Cliente explícito para GenAI SDK (Vertex AI Mode)
         self.client = Client(
-            vertexai=True, 
+            vertexai=settings.GOOGLE_GENAI_USE_VERTEXAI, 
             project=settings.PROJECT_ID, 
             location=settings.REGION,
             http_options={'api_version': 'v1'} 
@@ -155,11 +155,16 @@ class AgentRouter:
         # 1. Obtener agente especializado para el perfil
         specialized_agent = get_hr_agent(profile=profile)
 
-        # Asegurar variables de entorno para inicialización implícita del cliente GenAI de ADK (Vertex AI Mode)
+        # Asegurar variables de entorno para inicialización implícita del cliente GenAI de ADK
         settings = get_settings()
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
-        os.environ["GOOGLE_CLOUD_PROJECT"] = settings.PROJECT_ID
-        os.environ["GOOGLE_CLOUD_LOCATION"] = settings.REGION
+        if settings.GOOGLE_GENAI_USE_VERTEXAI:
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+            os.environ["GOOGLE_CLOUD_PROJECT"] = settings.PROJECT_ID
+            os.environ["GOOGLE_CLOUD_LOCATION"] = settings.REGION
+        else:
+             # Ensure we don't force Vertex if configured to False
+             if "GOOGLE_GENAI_USE_VERTEXAI" in os.environ:
+                 del os.environ["GOOGLE_GENAI_USE_VERTEXAI"]
 
         # 3. Preparar mensaje
         if profile:

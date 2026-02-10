@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     PROJECT_ID: str
     REGION: str = "us-central1"
     ENV: str = "development"  # "development" o "production"
-    MODEL_NAME: str = "gemini-1.5-flash"
+    MODEL_NAME: str = "gemini-2.0-flash-exp"
     
     # BigQuery
     BQ_DATASET: str
@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # App
     LOG_LEVEL: str = "INFO"
     SECRET_KEY: str = "adk-talent-analytics-super-secret-key-2026-sota-security"
+    GOOGLE_GENAI_USE_VERTEXAI: bool = True
     
     @property
     def APP_ENV(self):

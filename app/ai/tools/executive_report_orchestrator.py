@@ -1,561 +1,290 @@
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime
 import logging
+import json
 import asyncio
 import re
+from datetime import datetime
+from typing import Dict, Any, List, Optional
 from dateutil.relativedelta import relativedelta
 
-# Semantic Engine Integration
 from app.ai.tools.universal_analyst import execute_semantic_query
-from app.schemas.payloads import (
-    VisualDataPackage, VisualBlock, TextBlock, KPIBlock, KPIItem, 
-    ChartBlock, ChartPayload, ChartMetadata, TableBlock, TablePayload,
-    Dataset, MetricFormat
-)
+from app.ai.tools.executive_insights import ReportInsightGenerator
+from app.schemas.payloads import VisualDataPackage, TextBlock
 from app.core.analytics.registry import DEFAULT_LISTING_COLUMNS
-from google.genai import types, Client
-import os
 
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# PERIOD UTILITIES
-# ============================================================================
+# --- PERIOD UTILITIES ---
 
 def parse_period(periodo: str) -> Dict:
-    """
-    Parse period string in YYYY, YYYYQN, or YYYYMM format.
-    
-    Returns:
-        Dict with keys: granularity, year, quarter, month, original, display
-    """
     periodo = periodo.strip()
-    
-    # Year format: YYYY
+    range_match = re.match(r'^(\d{6})-(\d{6})$', periodo)
+    if range_match:
+        start_str, end_str = range_match.groups()
+        start_dt = datetime.strptime(start_str, "%Y%m")
+        end_dt = datetime.strptime(end_str, "%Y%m")
+        delta = relativedelta(end_dt, start_dt)
+        months_diff = delta.years * 12 + delta.months + 1
+        return {
+            "granularity": "RANGE", "start": start_str, "end": end_str,
+            "months_duration": months_diff, "original": periodo,
+            "display": f"{start_dt.strftime('%b %Y')} - {end_dt.strftime('%b %Y')}"
+        }
     if re.match(r'^\d{4}$', periodo):
         year = int(periodo)
-        return {
-            "granularity": "YEAR",
-            "year": year,
-            "quarter": None,
-            "month": None,
-            "original": periodo,
-            "display": f"Año {year}"
-        }
-    
-    # Quarter format: YYYYQN
+        return {"granularity": "YEAR", "year": year, "original": periodo, "display": f"Año {year}"}
     quarter_match = re.match(r'^(\d{4})Q([1-4])$', periodo, re.IGNORECASE)
     if quarter_match:
-        year = int(quarter_match.group(1))
-        quarter = int(quarter_match.group(2))
-        return {
-            "granularity": "QUARTER",
-            "year": year,
-            "quarter": quarter,
-            "month": None,
-            "original": periodo,
-            "display": f"Q{quarter} {year}"
-        }
-    
-    # Month format: YYYYMM
+        year = int(quarter_match.group(1)); quarter = int(quarter_match.group(2))
+        return {"granularity": "QUARTER", "year": year, "quarter": quarter, "original": periodo, "display": f"Q{quarter} {year}"}
     if re.match(r'^\d{6}$', periodo):
-        year = int(periodo[:4])
-        month = int(periodo[4:6])
+        year = int(periodo[:4]); month = int(periodo[4:6])
         if 1 <= month <= 12:
-            month_names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-                          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-            return {
-                "granularity": "MONTH",
-                "year": year,
-                "quarter": None,
-                "month": month,
-                "original": periodo,
-                "display": f"{month_names[month-1]} {year}"
-            }
-    
-    raise ValueError(f"Invalid period format '{periodo}'. Use YYYY, YYYYQN, or YYYYMM.")
-
+            month_names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+            return {"granularity": "MONTH", "year": year, "month": month, "original": periodo, "display": f"{month_names[month-1]} {year}"}
+    raise ValueError(f"Invalid period format '{periodo}'.")
 
 def get_previous_period(periodo: str) -> str:
-    """Calculate the previous period based on granularity."""
     parsed = parse_period(periodo)
-    
-    if parsed["granularity"] == "YEAR":
-        return str(parsed["year"] - 1)
+    if parsed["granularity"] == "RANGE":
+        duration = parsed["months_duration"]
+        current_start = datetime.strptime(parsed["start"], "%Y%m")
+        prev_start = current_start - relativedelta(months=duration)
+        prev_end = prev_start + relativedelta(months=duration - 1)
+        return f"{prev_start.strftime('%Y%m')}-{prev_end.strftime('%Y%m')}"
+    elif parsed["granularity"] == "YEAR": return str(parsed["year"] - 1)
     elif parsed["granularity"] == "QUARTER":
-        if parsed["quarter"] == 1:
-            return f"{parsed['year'] - 1}Q4"
-        else:
-            return f"{parsed['year']}Q{parsed['quarter'] - 1}"
+        if parsed["quarter"] == 1: return f"{parsed['year'] - 1}Q4"
+        return f"{parsed['year']}Q{parsed['quarter'] - 1}"
     elif parsed["granularity"] == "MONTH":
-        current_date = datetime(parsed["year"], parsed["month"], 1)
-        prev_date = current_date - relativedelta(months=1)
+        prev_date = datetime(parsed["year"], parsed["month"], 1) - relativedelta(months=1)
         return prev_date.strftime("%Y%m")
-    
-    raise ValueError(f"Unknown granularity: {parsed['granularity']}")
+    return periodo
 
+def get_period_filters(parsed: Dict) -> List[Dict]:
+    if parsed["granularity"] == "RANGE":
+        return [{"dimension": "periodo", "operator": ">=", "value": parsed["start"]}, {"dimension": "periodo", "operator": "<=", "value": parsed["end"]}]
+    if parsed["granularity"] == "YEAR": return [{"dimension": "anio", "value": parsed["year"]}]
+    if parsed["granularity"] == "QUARTER": return [{"dimension": "anio", "value": parsed["year"]}, {"dimension": "trimestre", "value": parsed["quarter"]}]
+    if parsed["granularity"] == "MONTH": return [{"dimension": "periodo", "value": parsed["original"]}]
+    return []
 
-def get_ytd_range(periodo: str) -> Tuple[str, str]:
-    """Calculate Year-to-Date range based on granularity."""
-    parsed = parse_period(periodo)
-    
-    if parsed["granularity"] == "YEAR":
-        prev_year = str(parsed["year"] - 1)
-        return (prev_year, prev_year)
-    elif parsed["granularity"] == "QUARTER":
-        start_q = f"{parsed['year']}Q1"
-        end_q = parsed["original"]
-        return (start_q, end_q)
-    elif parsed["granularity"] == "MONTH":
-        start_month = f"{parsed['year']}01"
-        end_month = parsed["original"]
-        return (start_month, end_month)
-    
-    raise ValueError(f"Unknown granularity: {parsed['granularity']}")
+# --- CORE LOGIC ---
 
+from app.services.report_snapshot_service import ReportSnapshotService
 
-# ============================================================================
-# LLM NARRATIVE GENERATION
-# ============================================================================
+# --- SEMANTIC INTERPRETER ---
 
-def generate_critical_insight(
-    periodo_display: str,
-    headline_data: Dict[str, float],
-    prev_data: Dict[str, float],
-    annual_stats: Dict[str, float],
-    granularity: str
-) -> str:
-    """
-    Generate AI-powered narrative analysis for the Critical Insight section.
-    
-    Args:
-        periodo_display: Human-readable period (e.g., "Diciembre 2025")
-        headline_data: Current period KPIs
-        prev_data: Previous period KPIs for comparison
-        annual_stats: Annual average stats for context
-        granularity: YEAR | QUARTER | MONTH
-    
-    Returns:
-        Markdown-formatted narrative text
-    """
-    try:
-        # Initialize Vertex AI Client
-        client = Client(
-            vertexai=True,
-            project=os.getenv("PROJECT_ID"),
-            location=os.getenv("REGION", "us-central1")
+from app.core.config.config import get_settings
+from google.genai import types, Client
+from google.genai.errors import ClientError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+class SemanticInterpreter:
+    """Translates NL questions into structured cube_queries using Gemini with Retry Logic."""
+    def __init__(self):
+        from app.ai.agents.hr_agent import HR_PROMPT_SEMANTIC
+        self.settings = get_settings()
+        self.client = Client(
+            vertexai=self.settings.GOOGLE_GENAI_USE_VERTEXAI,
+            project=self.settings.PROJECT_ID,
+            location=self.settings.REGION
         )
-        
-        # Prepare context data
-        tasa_actual = headline_data.get("Tasa de Rotación Global (%)", 0)
-        ceses_actual = headline_data.get("Total Ceses", 0)
-        hc_actual = headline_data.get("Headcount Promedio", 0)
-        
-        tasa_prev = prev_data.get("Tasa de Rotación Global (%)", 0)
-        ceses_prev = prev_data.get("Total Ceses", 0)
-        hc_prev = prev_data.get("Headcount Promedio", 0)
-        
-        tasa_anual_avg = annual_stats.get("tasa_rotacion_avg", 0)
-        
-        delta_tasa = tasa_actual - tasa_prev
-        delta_ceses = ceses_actual - ceses_prev
-        delta_hc = hc_actual - hc_prev
-        
-        delta_anual_pct = 0
-        if tasa_anual_avg > 0:
-            delta_anual_pct = ((tasa_actual - tasa_anual_avg) / tasa_anual_avg) * 100
-        
-        # Determine period context
-        period_context = {
-            "YEAR": "anual",
-            "QUARTER": "trimestral",
-            "MONTH": "mensual"
-        }.get(granularity, "mensual")
-        
-        # Build prompt
-        prompt = f"""Eres un analista senior de RRHH especializado en rotación de personal. 
-        
-Analiza los siguientes datos de rotación del período {periodo_display} y genera un insight crítico ejecutivo.
+        self.model_name = self.settings.MODEL_NAME or "gemini-2.0-flash-exp"
+        self.instruction = HR_PROMPT_SEMANTIC + "\n\nCRÍTICO: Retorna UNICAMENTE el JSON de los argumentos para execute_semantic_query."
 
-**Datos Actuales ({periodo_display}):**
-- Tasa de Rotación: {tasa_actual:.2f}%
-- Total Ceses: {int(ceses_actual)}
-
-**Comparativa Mensual (vs Mes Anterior):**
-- Variación Tasa: {delta_tasa:+.2f} pts
-- Variación Ceses: {delta_ceses:+.0f}
-
-**Contexto Anual (Promedio Año):**
-- Promedio Tasa Anual: {tasa_anual_avg:.2f}%
-- Variación vs Promedio: {delta_anual_pct:+.1f}%
-
-**Instrucciones:**
-1. Escribe un párrafo de "Insight Crítico" similiar a este estilo:
-   "La tasa de rotación mensual cerró en X%, marcando el punto más alto del año. Este resultado representa un incremento de Y pts respecto al mes anterior y se sitúa un Z% por encima del promedio anual."
-2. Menciona si la tendencia es Alza Crítica, Estable o Mejora.
-3. Identifica riesgos potenciales si la variación vs promedio es alta (>15%).
-4. Usa tono ejecutivo, directo y basado en datos. Máximo 80 palabras.
-
-**Formato de salida:** Texto plano en español, sin markdown headers.
-"""
-        
-        # Generate narrative
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+    @retry(
+        retry=retry_if_exception_type(ClientError),
+        stop=stop_after_attempt(10),  # High retry count for batch processing
+        wait=wait_exponential(multiplier=4, min=10, max=120),  # Aggressive backoff: 10s, 20s, 40s...
+        reraise=True
+    )
+    def _generate_with_retry(self, prompt: str):
+        """Executes generation with backoff policy for 429 errors."""
+        logger.info("🔄 Calling Gemini for translation...")
+        return self.client.models.generate_content(
+            model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.3,  # Low temperature for factual analysis
-                max_output_tokens=300
+                response_mime_type="application/json"
             )
         )
-        
-        narrative = response.text.strip()
-        logger.info(f"✅ Generated critical insight narrative ({len(narrative)} chars)")
-        return narrative
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to generate narrative: {e}")
-        # Fallback to placeholder
-        return "[Análisis narrativo no disponible.]"
 
+    def translate(self, question: str) -> Dict:
+        """Translates a question to a semantic query dict. RAISES on error for Fail-Fast."""
+        # Inject system instruction into the prompt for context-aware translation
+        prompt = f"{self.instruction}\n\nUSER QUESTION: '{question}'\n\nJSON:"
+        # Uses the retrying method. If it fails after retries, it triggers RetryError (bubbling up).
+        response = self._generate_with_retry(prompt)
+        return json.loads(response.text)
 
-# ============================================================================
-# QUERY SEQUENCE BUILDER
-# ============================================================================
+# --- CORE LOGIC ---
 
-def build_query_sequence(periodo: str, uo2_filter: Optional[str] = None) -> List[Dict]:
+def _get_report_prompts(parsed: Dict, prev_p: str, scope: str) -> Dict[str, str]:
     """
-    Build the sequence of semantic queries for the executive report.
+    Generates dynamic, context-aware prompts for the Executive Report based on granularity.
     
     Args:
-        periodo: Period in YYYY, YYYYQN, or YYYYMM format
-        uo2_filter: Optional division filter
+        parsed: Result from parse_period (contains 'granularity', 'year', 'display', etc.)
+        prev_p: Display string for the previous period (e.g., '202411' or '2024').
+        scope: Organizational scope (e.g., 'Global', 'DIVISION TALENTO').
     
     Returns:
-        List of query configurations, one per report section
+        Dict[str, str]: The 7-block manifest of natural language questions.
     """
-    parsed = parse_period(periodo)
-    prev_period = get_previous_period(periodo)
+    is_year = parsed["granularity"] == "YEAR"
+    year = parsed["year"]
     
-    # Generate correct filters based on granularity
-    base_filters = []
-    
-    if parsed["granularity"] == "YEAR":
-        # For Annual, filter by "anio" dimension
-        base_filters.append({"dimension": "anio", "value": parsed["year"]})
-    elif parsed["granularity"] == "QUARTER":
-        # For Quarterly, filter by "anio" and "trimestre"
-        base_filters.append({"dimension": "anio", "value": parsed["year"]})
-        base_filters.append({"dimension": "trimestre", "value": parsed["quarter"]})
-    elif parsed["granularity"] == "MONTH":
-        # For Monthly, filter by "periodo" (YYYYMM)
-        base_filters.append({"dimension": "periodo", "value": parsed["original"]})
-    
-    # Add Division Filter if present
-    if uo2_filter:
-        base_filters.append({"dimension": "uo2", "value": uo2_filter})
-    
-    queries = [
-        # 1. Headline KPIs (Current Period)
-        {
-            "section": "headline_current",
-            "intent": "SNAPSHOT",
-            "cube_query": {
-                "metrics": ["tasa_rotacion", "ceses_totales", "headcount_promedio"],
-                "dimensions": [],
-                "filters": base_filters
-            },
-            "metadata": {"requested_viz": "KPI_ROW"}
-        },
-        
-        # 2. Headline KPIs (Previous Period)
-        {
-            "section": "headline_previous",
-            "intent": "SNAPSHOT",
-            "cube_query": {
-                "metrics": ["tasa_rotacion", "ceses_totales", "headcount_promedio"],
-                "dimensions": [],
-                "filters": [{"dimension": "periodo", "value": prev_period}] + ([{"dimension": "uo2", "value": uo2_filter}] if uo2_filter else [])
-            },
-            "metadata": {"requested_viz": "KPI_ROW"}
-        },
-        
-        # 3. YTD Trend (For Annual Averages calculation)
-        {
-            "section": "ytd_trend",
-            "intent": "TREND",
-            "cube_query": {
-                "metrics": ["tasa_rotacion", "ceses_totales", "headcount_promedio"],
-                "dimensions": ["mes"],
-                "filters": [{"dimension": "anio", "value": parsed["year"]}] + ([{"dimension": "uo2", "value": uo2_filter}] if uo2_filter else [])
-            },
-            "metadata": {"requested_viz": "LINE_CHART"} # Hidden viz, used for stats
-        },
-        
-        # 4. Segmentation Snapshot (FFVV vs ADMIN - Current Period)
-        {
-            "section": "segmentation_snapshot",
-            "intent": "COMPARISON",
-            "cube_query": {
-                "metrics": ["tasa_rotacion", "ceses_totales"],
-                "dimensions": ["grupo_segmento"],
-                "filters": base_filters
-            },
-            "metadata": {
-                "requested_viz": "BAR_CHART", 
-                "title_suggestion": "Rotación por Segmento (Actual)"
-            }
-        },
-        
-        # 5. Global Comparative Snapshot (Voluntary vs Involuntary)
-        {
-            "section": "global_breakdown",
-            "intent": "SNAPSHOT",
-            "cube_query": {
-                "metrics": ["tasa_rotacion_voluntaria", "tasa_rotacion_involuntaria"],
-                "dimensions": [],
-                "filters": base_filters
-            },
-            "metadata": {
-                "requested_viz": "PIE_CHART",
-                "title_suggestion": "Distribución Voluntaria vs Involuntaria"
-            }
-        },
-        
-        # 6. Voluntary Focus (Top Divisions)
-        {
-            "section": "voluntary_focus",
-            "intent": "COMPARISON",
-            "cube_query": {
-                "metrics": ["tasa_rotacion_voluntaria", "ceses_voluntarios"],
-                "dimensions": ["uo2"],
-                "filters": base_filters,
-                "limit": 5
-            },
-            "metadata": {
-                "requested_viz": "TABLE",
-                "title_suggestion": "Focos de Rotación Voluntaria (Top 5)"
-            }
-        },
-        
-        # 7. Talent Leakage (Detailed List)
-        {
-            "section": "talent_leakage",
-            "intent": "LISTING",
-            "cube_query": {
-                "metrics": [],
-                "dimensions": DEFAULT_LISTING_COLUMNS,
-                "filters": base_filters + [
-                    {"dimension": "talento", "value": ["HiPo", "HiPer"]},
-                    {"dimension": "estado", "value": "Cesado"}
-                ]
-            },
-            "metadata": {
-                "requested_viz": "TABLE",
-                "title_suggestion": "Fuga de Talento Crítico (Detalle)"
-            }
-        },
-        
-        # 8. Monthly Trend (Visual Context)
-        {
-            "section": "monthly_trend",
-            "intent": "TREND",
-            "cube_query": {
-                "metrics": ["tasa_rotacion", "tasa_rotacion_voluntaria"],
-                "dimensions": ["mes"],
-                "filters": [{"dimension": "anio", "value": parsed["year"]}] + ([{"dimension": "uo2", "value": uo2_filter}] if uo2_filter else [])
-            },
-            "metadata": {
-                "requested_viz": "LINE_CHART",
-                "title_suggestion": f"Evolución Mensual - {parsed['year']}"
-            }
+    if is_year:
+        return {
+            "headline_current": f"Calcula la tasa de rotación anualizada, ceses totales y headcount promedio ACUMULADO para TODO EL AÑO {year} en {scope}. (No te limites a un solo mes)",
+            "headline_previous": f"Calcula la tasa de rotación anualizada, ceses totales y headcount promedio ACUMULADO para el AÑO ANTERIOR {year - 1} en {scope}",
+            "annual_stats": f"Dame la tasa de rotación y ceses totales ACUMULADOS (YTD) para el AÑO {year} en {scope}",
+            "segmentation": f"Compara la tasa de rotación y ceses por grupo_segmento (Administrativo vs Fuerza de Ventas) ACUMULADO ANUAL {year} en {scope}",
+            "voluntary": f"Muestra la distribución de tasa de rotación voluntaria e involuntaria ACUMULADA del año {year} en {scope}",
+            "talent": f"Lista los colaboradores HiPo o HiPer que han cesado durante TODO EL AÑO {year} en {scope}",
+            "trend": f"Muestra la evolución MENSUAL de la tasa de rotación para cada mes del año {year} en {scope}"
         }
-    ]
-    
-    return queries
+    else:
+        display = parsed['display']
+        return {
+            "headline_current": f"Calcula la tasa de rotación, ceses totales y headcount promedio para el MES de {display} en {scope}",
+            "headline_previous": f"Calcula la tasa de rotación, ceses totales y headcount promedio para el MES ANTERIOR ({prev_p}) en {scope}",
+            "annual_stats": f"Dame la tasa de rotación y ceses totales acumulados (YTD) para el año {year} hasta {display} en {scope}",
+            "segmentation": f"Compara la tasa de rotación y ceses por grupo_segmento (Administrativo vs Fuerza de Ventas) para el MES de {display} en {scope}",
+            "voluntary": f"Muestra la distribución de tasa de rotación voluntaria e involuntaria para el MES de {display} en {scope}",
+            "talent": f"Lista los colaboradores HiPo o HiPer que han cesado en el MES de {display} en {scope}",
+            "trend": f"Muestra la evolución MENSUAL de la tasa de rotación para el año {year} (Enero a Diciembre) en {scope}"
+        }
 
-
-# ============================================================================
-# MAIN ORCHESTRATOR
-# ============================================================================
-
-def generate_executive_report(periodo_anomes: str, uo2_filter: Optional[str] = None) -> dict:
+async def generate_executive_report(
+    periodo_anomes: str, 
+    uo2_filter: Optional[str] = None, 
+    sections: Optional[List[str]] = None
+) -> Dict[str, Any]:
     """
-    Generate Executive Turnover Report by orchestrating sequential calls to universal_analyst.
+    Generates a holistic Executive Report for a specific period and optional scope.
     
     Args:
-        periodo_anomes: Period in YYYY, YYYYQN, or YYYYMM format
-        uo2_filter: Optional division filter
-    
-    Returns:
-        VisualDataPackage with 7-section executive report
+        periodo_anomes: Target period. 
+            - Use 'YYYY' (e.g., '2025') for FULL YEAR reports.
+            - Use 'YYYYMM' (e.g., '202511') for MONTHLY reports.
+        uo2_filter: Optional Division/Unit filter (e.g., 'DIVISION TALENTO'). Defaults to 'Global'.
     """
-    logger.info(f"🎯 [ORCHESTRATOR] Generating Executive Report for {periodo_anomes}")
-    
-    # Parse period
     try:
-        parsed_period = parse_period(periodo_anomes)
-        prev_period = get_previous_period(periodo_anomes)
-        logger.info(f"   📅 Period: {parsed_period['display']} | Previous: {prev_period}")
-    except ValueError as e:
-        return {"error": str(e)}
-    
-    # Build query sequence
-    queries = build_query_sequence(periodo_anomes, uo2_filter)
-    logger.info(f"   📋 Query sequence: {len(queries)} sections")
-    
-    # Execute queries sequentially
-    results = {}
-    for query_config in queries:
-        section = query_config["section"]
-        logger.info(f"   ⏳ Executing: {section}")
+        parsed = parse_period(periodo_anomes)
+        prev_p = get_previous_period(periodo_anomes)
+        scope = uo2_filter or "Global"
         
-        # Extract limit if present in cube_query to pass as explicit argument
-        limit = None
-        if "limit" in query_config["cube_query"]:
-            limit = query_config["cube_query"].pop("limit")
+        # Determine Context Label for the Report Title
+        is_year = parsed["granularity"] == "YEAR"
+        label_period = f"AÑO {parsed['year']}" if is_year else parsed['display']
+        ctx_label = f"{label_period} | {scope}"
         
-        try:
-            result = execute_semantic_query(
-                intent=query_config["intent"],
-                cube_query=query_config["cube_query"],
-                metadata=query_config.get("metadata", {}),
-                limit=limit
-            )
-            results[section] = result
-            logger.info(f"   ✅ {section} completed")
-        except Exception as e:
-            logger.error(f"   ❌ {section} failed: {e}")
-            results[section] = {"content": [], "error": str(e)}
-    
-    # Extract KPI data for narrative and comparison
-    headline_data = {}
-    prev_data = {}
-    annual_stats = {"tasa_rotacion_avg": 0, "ceses_avg": 0, "hc_avg": 0}
-    
-    # Extract from headline_current
-    if "headline_current" in results and "content" in results["headline_current"]:
-        content = results["headline_current"]["content"]
-        if content and len(content) > 0:
-            first_block = content[0]
-            if hasattr(first_block, 'payload') and hasattr(first_block.payload, 'items'):
-                for item in first_block.payload.items:
-                    headline_data[item.label] = item.value
-    
-    # Extract from headline_previous
-    if "headline_previous" in results and "content" in results["headline_previous"]:
-        content = results["headline_previous"]["content"]
-        if content and len(content) > 0:
-            first_block = content[0]
-            if hasattr(first_block, 'payload') and hasattr(first_block.payload, 'items'):
-                for item in first_block.payload.items:
-                    prev_data[item.label] = item.value
-    
-    # Calculate Annual Averages from YTD Trend
-    if "ytd_trend" in results and "content" in results["ytd_trend"]:
-        content = results["ytd_trend"]["content"]
-        if content and len(content) > 0:
-            # Assuming Single Dataset for each metric in Trend Line or similar structure
-            # But execute_semantic_query returns ChartPayload for TREND intent
-            chart_block = content[0]
-            if hasattr(chart_block, 'payload') and hasattr(chart_block.payload, 'datasets'):
-                datasets = chart_block.payload.datasets
-                
-                # Helper to get average from a dataset label
-                def get_avg_from_dataset(label_key):
-                    for ds in datasets:
-                        if label_key in ds.label.lower():
-                            values = [v for v in ds.data if v is not None]
-                            return sum(values) / len(values) if values else 0
-                    return 0
-                
-                annual_stats["tasa_rotacion_avg"] = get_avg_from_dataset("tasa")
-                annual_stats["ceses_avg"] = get_avg_from_dataset("ceses")
-                annual_stats["hc_avg"] = get_avg_from_dataset("headcount")
+        # Initialize Services
+        interpreter = SemanticInterpreter()
+        snapshot_svc = ReportSnapshotService()
+        report_id = snapshot_svc.create_snapshot(periodo_anomes, scope)
+        logger.info(f"🚀 Started Report 2.0: {report_id} (Granularity: {parsed['granularity']})")
 
-    # Generate LLM narrative for Insight Crítico
-    narrative = generate_critical_insight(
-        periodo_display=parsed_period['display'],
-        headline_data=headline_data,
-        prev_data=prev_data,
-        annual_stats=annual_stats, # Pass annual context
-        granularity=parsed_period['granularity']
-    )
-    
-    # Assemble VisualDataPackage
-    blocks = []
-    
-    # Title
-    blocks.append(TextBlock(payload=f"Reporte Ejecutivo de Rotación - {parsed_period['display']}", variant="h2"))
-    
-    # Section 1: Insight Crítico
-    blocks.append(TextBlock(payload="1. Insight Crítico", variant="h3"))
-    blocks.append(TextBlock(payload=narrative, variant="standard"))
-    if "headline_current" in results:
-        blocks.extend(results["headline_current"].get("content", []))
-    
-    # Section 2: Segmentación
-    blocks.append(TextBlock(payload="2. Segmentación (ADMIN vs FFVV)", variant="h3"))
-    if "segmentation_snapshot" in results:
-        blocks.extend(results["segmentation_snapshot"].get("content", []))
-    
-    # Section 3: Rotación Voluntaria
-    blocks.append(TextBlock(payload="3. Resumen de Rotación Voluntaria", variant="h3"))
-    if "global_breakdown" in results:
-        blocks.extend(results["global_breakdown"].get("content", []))
-    
-    # Section 3.1: Focos
-    blocks.append(TextBlock(payload="3.1 Focos de Concentración (Top Divisiones)", variant="h3"))
-    if "voluntary_focus" in results:
-        blocks.extend(results["voluntary_focus"].get("content", []))
-    
-    # Section 4: Fuga de Talento
-    blocks.append(TextBlock(payload="4. Alerta de Talento Clave", variant="h3"))
-    blocks.append(TextBlock(payload="Colaboradores clave (HiPo/HiPer) salientes en el periodo:", variant="standard"))
-    if "talent_leakage" in results:
-        blocks.extend(results["talent_leakage"].get("content", []))
-    
-    # Section 5: Tabla Comparativa vs Promedio Anual
-    blocks.append(TextBlock(payload="5. Tabla Comparativa (vs. Promedio Anual)", variant="h3"))
-    
-    # Construct Manual Table for Section 5
-    try:
-        current_hc = headline_data.get("Headcount Promedio", 0)
-        current_ceses = headline_data.get("Total Ceses", 0)
-        current_rate = headline_data.get("Tasa de Rotación Global (%)", 0)
-        
-        avg_hc = annual_stats["hc_avg"]
-        avg_ceses = annual_stats["ceses_avg"]
-        avg_rate = annual_stats["tasa_rotacion_avg"]
-        
-        def safe_delta_pct(curr, base):
-            if base == 0: return "N/A"
-            delta = ((curr - base) / base) * 100
-            return f"{delta:+.1f}%"
+        # 1. Define Natural Language Questions (Dynamic Manifest via Helper)
+        questions = _get_report_prompts(parsed, prev_p, scope)
 
-        comp_table_rows = [
-            {"Indicador": "HC Activo Promedio", "Mes Actual": f"{int(current_hc)}", "Promedio Anual": f"{int(avg_hc)}", "Variación": safe_delta_pct(current_hc, avg_hc)},
-            {"Indicador": "Ceses Totales", "Mes Actual": f"{int(current_ceses)}", "Promedio Anual": f"{int(avg_ceses)}", "Variación": safe_delta_pct(current_ceses, avg_ceses)},
-            {"Indicador": "Tasa Rotación (%)", "Mes Actual": f"{current_rate:.2f}%", "Promedio Anual": f"{avg_rate:.2f}%", "Variación": f"{current_rate - avg_rate:+.2f} pts"}
+        # 2. Gather Data (Strict Sequential with Fail-Fast)
+        results = {}
+        for key, text in questions.items():
+            logger.info(f"🧠 Interpreting ({key}): {text}")
+            
+            # CRITICAL: Fail-Fast Logic
+            # If translate fails (throws RetryError after 10 attempts), 
+            # the entire process stops and returns the error to the user.
+            spec = interpreter.translate(text)
+            
+            if spec:
+                # Add metadata to help the Semantic Engine generate better titles/descriptions
+                if "metadata" not in spec: spec["metadata"] = {}
+                spec["metadata"]["report_context"] = ctx_label
+                spec["metadata"]["block_key"] = key
+                
+                results[key] = execute_semantic_query(
+                    intent=spec.get("intent", "SNAPSHOT"),
+                    cube_query=spec.get("cube_query", {}),
+                    metadata=spec.get("metadata", {})
+                )
+            else:
+                 # Should technically be unreachable if translate raises, but strictly handling empty return just in case
+                 raise ValueError("Semantic translation returned empty specification.")
+
+        # 3. Store Snapshot in Firestore
+        snapshot_svc.update_snapshot(report_id, results)
+
+        # 4. Generate Holistic Narratives
+        logger.info(f"🎨 Generating holistic narratives for {report_id}...")
+        ai_gen = ReportInsightGenerator()
+        ai_narratives = ai_gen.generate_report_narratives(results, ctx_label)
+        snapshot_svc.save_narratives(report_id, ai_narratives)
+
+        # 5. Assemble Visual Package
+        blocks = [
+            {"type": "text", "payload": f"Reporte Ejecutivo: {ctx_label}", "variant": "h2"},
+            {"type": "text", "payload": ai_narratives.get("critical_insight", "Generando resumen..."), "variant": "insight"}
         ]
         
-        blocks.append(TableBlock(payload=TablePayload(rows=comp_table_rows)))
+        # Headline KPIs
+        blocks.extend(results["headline_current"].get("content", []))
         
-    except Exception as e:
-        logger.error(f"Error constructing comparative table: {e}")
-    
-    # Section 6: Monthly Trend
-    blocks.append(TextBlock(payload="6. Tendencia Anual", variant="h3"))
-    if "monthly_trend" in results:
-        blocks.extend(results["monthly_trend"].get("content", []))
+        # Segmentation
+        blocks.append({"type": "text", "payload": "Análisis por Segmento", "variant": "h3"})
+        blocks.extend(results["segmentation"].get("content", []))
+        blocks.append({"type": "text", "payload": ai_narratives.get("segmentation", ""), "variant": "standard"})
+        
+        # Voluntary
+        blocks.append({"type": "text", "payload": "Distribución de Rotación Voluntaria", "variant": "h3"})
+        blocks.extend(results["voluntary"].get("content", []))
+        blocks.append({"type": "text", "payload": ai_narratives.get("voluntary_trend", ""), "variant": "standard"})
 
-    # Section 7: Strategic Conclusion (Placeholder for full LLM implementation)
-    # Ideally, this would be another LLM call with all previous context
+        # Talent
+        if results["talent"].get("content"):
+            blocks.append({"type": "text", "payload": "Fuga de Talento Crítico", "variant": "h3"})
+            blocks.extend(results["talent"].get("content", []))
+            blocks.append({"type": "text", "payload": ai_narratives.get("talent_leakage", ""), "variant": "insight"})
+            
+        # Trend
+        blocks.append({"type": "text", "payload": "Evolución de Rotación", "variant": "h3"})
+        blocks.extend(results["trend"].get("content", []))
+
+        # Strategic Conclusion
+        blocks.append({"type": "text", "payload": "Conclusión Estratégica", "variant": "h3"})
+        blocks.append({"type": "text", "payload": ai_narratives.get("strategic_conclusion", ""), "variant": "standard"})
+
+        # Recommendations (New Expert Block)
+        recs = ai_narratives.get("recommendations")
+        if recs:
+            if isinstance(recs, list):
+                recs_text = "\n".join([f"• {r}" for r in recs])
+            else:
+                recs_text = str(recs)
+            
+            blocks.append({"type": "text", "payload": "Recomendaciones Tácticas (AI Expert)", "variant": "h3"})
+            blocks.append({"type": "text", "payload": recs_text, "variant": "insight"})
+
+        return _sanitize_output({
+            "response_type": "visual_package",
+            "summary": f"Reporte Ejecutivo de Rotación - ID: {report_id}",
+            "content": blocks,
+            "metadata": {"report_id": report_id}
+        })
+
+    except Exception as e:
+        logger.error(f"Error in Orchestrator 2.0: {e}", exc_info=True)
+        return {"response_type": "error", "summary": f"Error: {str(e)}", "content": []}
+
+def _sanitize_output(payload: Dict) -> Dict:
+    # Recursively clean payload for JSON safety
+    def clean(obj):
+        if isinstance(obj, list): return [clean(x) for x in obj]
+        if isinstance(obj, dict): return {k: clean(v) for k, v in obj.items()}
+        if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)): return None
+        return obj
     
-    logger.info(f"✅ [ORCHESTRATOR] Report generated with {len(blocks)} blocks")
-    
-    return VisualDataPackage(
-        response_type="visual_package",
-        summary=f"Reporte Ejecutivo de Rotación - {parsed_period['display']}",
-        content=blocks
-    ).model_dump()
+    import math
+    return clean(payload)
