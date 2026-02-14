@@ -34,7 +34,7 @@ class AgentRouter:
             vertexai=settings.GOOGLE_GENAI_USE_VERTEXAI, 
             project=settings.PROJECT_ID, 
             location=settings.REGION,
-            http_options={'api_version': 'v1'} 
+            http_options={'api_version': 'v1', 'timeout': 900.0} 
         )
         
         # Prompt ligero para el triage inicial (Usando Single Quotes para seguridad)
@@ -284,19 +284,39 @@ class AgentRouter:
 
             t_start_llm = time.time()
             self._track_and_log_rpm() # Telemetría antes de llamar
-            triage_response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=triage_contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=triage_instr,
-                    temperature=0.0,
-                    tools=[process_triage_step], # SOLO herramientas lógicas, nada de I/O
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                        disable=False,
-                        maximum_remote_calls=3 # Reducimos max calls pues ya no hay loops de validación 
+            
+            try:
+                triage_response = self.client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=triage_contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=triage_instr,
+                        temperature=0.0,
+                        tools=[process_triage_step], # SOLO herramientas lógicas, nada de I/O
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                            disable=False,
+                            maximum_remote_calls=3 
+                        )
                     )
                 )
-            )
+            except Exception as e:
+                # Catch specific timeout/read errors that might be wrapped
+                error_str = str(e).lower()
+                if "timeout" in error_str or "readoperation" in error_str or "deadline" in error_str:
+                    self.logger.warning(f"⚠️ [ROUTER] Triage timed out with AFC. Retrying WITHOUT tools (Pure Text Fallback). Error: {e}")
+                    # FALLBACK: Intentar sin herramientas para desbloquear
+                    triage_response = self.client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=triage_contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=triage_instr + "\n\n[NOTA: EL VALIDADOR FALLÓ. RESPONDE SOLO CON TEXTO Y 'PROCEED' SI ES POSIBLE.]",
+                            temperature=0.0,
+                            tools=[], # Sin tools
+                        )
+                    )
+                else:
+                    raise e
+                    
             self.logger.info(f"[ROUTER] LLM Generation time: {time.time() - t_start_llm:.4f}s")
             
             # Obtener texto de forma ultra-robusta
@@ -335,7 +355,7 @@ class AgentRouter:
                 return triage_text
         except Exception as e:
             self.logger.error(f"Triage failed: {e}. Falling back to full agent.")
-            self.logger.error(traceback.format_exc())
+            # self.logger.error(traceback.format_exc()) # Reduce noise
             pass
 
         # 2. Inicializar Runner dinámico (Maquinaria pesada)
@@ -428,8 +448,21 @@ class AgentRouter:
                     else:
                         self.logger.error("Max retries reached for 429 error.")
                         return "Lo siento, la cuota de la API de IA se ha agotado. Por favor, intenta de nuevo en unos minutos."
+                
+                # RESILIENCE BLOCK: Timeout/Network Error but Data was Generated
+                elif "timeout" in error_msg.lower() or "readoperation" in error_msg.lower():
+                    if last_tool_result and isinstance(last_tool_result, dict):
+                         self.logger.warning(f"⚠️ [RESILIENCE] LLM Timeout ({error_msg}) but Tool Data was captured. Returning data to user.")
+                         break # Break loop, code below will return last_tool_result
+                    else:
+                         self.logger.error(f"Runner failed with Timeout and no data: {e}")
+                         raise e
                 else:
                     self.logger.error(f"Runner failed: {e}")
+                    # Validate if we have a valid package before raising
+                    if last_tool_result and isinstance(last_tool_result, dict) and last_tool_result.get("response_type") == "visual_package":
+                         self.logger.warning(f"⚠️ [RESILIENCE] Unknown Error ({error_msg}) but Tool Data captured. Returning data.")
+                         break
                     raise e
 
         print(f"--- [DEBUG] Final Response Length: {len(response_text)} ---")

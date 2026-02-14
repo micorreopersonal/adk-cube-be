@@ -13,10 +13,16 @@ class FilterCondition(BaseModel):
     operator: Literal["EQ", "NEQ", "GT", "LT", "IN", "NOT_IN"] = "EQ"
     value: Union[str, int, List[str], List[int]]
 
+class AdHocGroup(BaseModel):
+    dimension: str = Field(..., description="Dimensión a agrupar (ej: 'uo5')")
+    label: str = Field(..., description="Nombre del nuevo grupo (ej: 'FFVV Core')")
+    values: List[str] = Field(..., description="Lista de valores a agrupar")
+
 class CubeQuery(BaseModel):
     metrics: List[str] = Field(default=[], description="Métricas del Registry (ej: ['tasa_rotacion'])")
     dimensions: List[str] = Field(default=[], description="Dimensiones de agrupación")
     filters: List[FilterCondition] = Field(default=[], description="Lista de filtros explícitos")
+    adhoc_groups: Optional[List[AdHocGroup]] = Field(default=None, description="Grupos dinámicos definidos en la consulta")
     comparison: Optional[ComparisonConfig] = None
 
 # --- METADATA ---

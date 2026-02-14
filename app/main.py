@@ -21,11 +21,6 @@ def log_debug(msg: str):
 
 log_debug(f"🚀 API Entrypoint main.py loaded. CWD: {os.getcwd()}")
 
-try:
-    import app.ai.tools.executive_report_stream as ers
-    log_debug(f"🚀 executive_report_stream loaded from: {ers.__file__}")
-except Exception as e:
-    log_debug(f"❌ Failed to import ers: {e}")
 
 settings = get_settings()
 
@@ -61,5 +56,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Incluir rutas aisladas
+# Incluir rutas aisladas (Ahora en raíz, sin prefijo /api)
+app.include_router(api_router)
+# Compatibilidad con frontend legacy que busca /api
 app.include_router(api_router, prefix="/api")

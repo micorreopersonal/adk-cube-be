@@ -14,6 +14,7 @@ class ChatResponse(BaseModel):
     metadata: Optional[dict] = None
     
     # New Fields for VisualDataPackage
+    alert_highlight: Optional[str] = Field(None, description="Critical alert/summary text for blue banner.")
     response_type: str = Field("text", description="Type of response: 'text' or 'visual_package'")
     content: Optional[List[dict]] = Field(None, description="List of visual blocks (text, kpi_row, plot, table)")
 

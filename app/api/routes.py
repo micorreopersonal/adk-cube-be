@@ -144,8 +144,15 @@ async def chat(request: ChatRequest, current_user: TokenData = Depends(get_curre
         print(json.dumps(visual_package, indent=2, default=str))
         print("-" * 60)
 
+    # Logic to populate alert_highlight
+    alert_highlight_text = None
+    if isinstance(response_text, dict):
+        # Si es un paquete visual, usamos el summary como alerta destacada
+        alert_highlight_text = response_text.get("summary")
+
     return ChatResponse(
-        response=final_response_text, 
+        response=final_response_text,
+        alert_highlight=alert_highlight_text,
         response_type=visual_package["response_type"],
         content=visual_package["content"],
         session_id=request.session_id,

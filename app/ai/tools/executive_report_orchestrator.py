@@ -136,8 +136,8 @@ def _get_report_prompts(parsed: Dict, prev_p: str, scope: str) -> Dict[str, str]
     
     if is_year:
         return {
-            "headline_current": f"Calcula la tasa de rotación anualizada, ceses totales y headcount promedio ACUMULADO para TODO EL AÑO {year} en {scope}. (No te limites a un solo mes)",
-            "headline_previous": f"Calcula la tasa de rotación anualizada, ceses totales y headcount promedio ACUMULADO para el AÑO ANTERIOR {year - 1} en {scope}",
+            "headline_current": f"Calcula la tasa de rotación anualizada y ceses totales ACUMULADOS para TODO EL AÑO {year} en {scope}. (No te limites a un solo mes)",
+            "headline_previous": f"Calcula la tasa de rotación anualizada y ceses totales ACUMULADOS para el AÑO ANTERIOR {year - 1} en {scope}",
             "annual_stats": f"Dame la tasa de rotación y ceses totales ACUMULADOS (YTD) para el AÑO {year} en {scope}",
             "segmentation": f"Compara la tasa de rotación y ceses por grupo_segmento (Administrativo vs Fuerza de Ventas) ACUMULADO ANUAL {year} en {scope}",
             "voluntary": f"Muestra la distribución de tasa de rotación voluntaria e involuntaria ACUMULADA del año {year} en {scope}",
@@ -147,8 +147,8 @@ def _get_report_prompts(parsed: Dict, prev_p: str, scope: str) -> Dict[str, str]
     else:
         display = parsed['display']
         return {
-            "headline_current": f"Calcula la tasa de rotación, ceses totales y headcount promedio para el MES de {display} en {scope}",
-            "headline_previous": f"Calcula la tasa de rotación, ceses totales y headcount promedio para el MES ANTERIOR ({prev_p}) en {scope}",
+            "headline_current": f"Calcula la tasa de rotación y ceses totales para el MES de {display} en {scope}",
+            "headline_previous": f"Calcula la tasa de rotación y ceses totales para el MES ANTERIOR ({prev_p}) en {scope}",
             "annual_stats": f"Dame la tasa de rotación y ceses totales acumulados (YTD) para el año {year} hasta {display} en {scope}",
             "segmentation": f"Compara la tasa de rotación y ceses por grupo_segmento (Administrativo vs Fuerza de Ventas) para el MES de {display} en {scope}",
             "voluntary": f"Muestra la distribución de tasa de rotación voluntaria e involuntaria para el MES de {display} en {scope}",
@@ -162,7 +162,19 @@ async def generate_executive_report(
     sections: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
-    Generates a holistic Executive Report for a specific period and optional scope.
+    **SOLO USAR CUANDO EL USUARIO EXPLÍCITAMENTE PIDA UN "REPORTE EJECUTIVO".**
+    
+    Genera un Reporte Ejecutivo holístico con múltiples secciones (KPIs, análisis por segmento, insights de IA).
+    
+    **Cuándo usar esta herramienta**:
+    - Usuario dice: "Reporte ejecutivo de [periodo]"
+    - Usuario dice: "Reporte de rotación de [periodo]"
+    - Usuario dice: "Dashboard ejecutivo"
+    
+    **Cuándo NO usar esta herramienta** (usar execute_semantic_query en su lugar):
+    - Usuario pide UNA métrica específica: "Tasa de rotación de 2025"
+    - Usuario pide UN gráfico: "Evolución de ceses"
+    - Usuario pide UNA tabla: "Listado de ceses"
     
     Args:
         periodo_anomes: Target period. 

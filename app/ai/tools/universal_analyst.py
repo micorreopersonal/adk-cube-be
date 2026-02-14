@@ -105,6 +105,9 @@ def _format_kpi_block(df: pd.DataFrame, metrics: List[str]) -> KPIBlock:
             if m_key in df.columns:
                 reg = METRICS_REGISTRY.get(m_key, {})
                 val = row[m_key]
+                if pd.isna(val):
+                    val = 0 # Default for explicit KPIs when missing
+                
                 items.append(KPIItem(
                     label=reg.get("label", m_key),
                     value=val, # El frontend maneja el formato si es numero
@@ -192,19 +195,33 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
         else:
             labels = raw_labels
             
+        # CRITICAL FIX: Iterar sobre TODAS las columnas que sean métricas conocidas, 
+        # incluyendo las inyectadas automáticamente, no solo las de req.cube_query.metrics
+        # Para mantener orden, usamos req metrics primero, luego extras encontrados en DF
+        
+        processed_metrics = []
+        # 1. Métricas solicitadas (Prioridad)
         for m_key in req.cube_query.metrics:
             if m_key in df.columns:
-                m_label = METRICS_REGISTRY.get(m_key, {}).get("label", m_key)
-                data_points = df[m_key].tolist()
-                
-                # Extraer formato de la métrica
-                metric_format = None
-                metric_def = METRICS_REGISTRY.get(m_key, {})
-                if "format" in metric_def and isinstance(metric_def["format"], dict):
-                    from app.schemas.payloads import MetricFormat
-                    metric_format = MetricFormat(**metric_def["format"])
-                
-                datasets.append(Dataset(label=m_label, data=data_points, format=metric_format))
+                processed_metrics.append(m_key)
+        
+        # 2. Métricas extra (Inyectadas)
+        for col in df.columns:
+            if col in METRICS_REGISTRY and col not in processed_metrics and col not in req.cube_query.dimensions:
+                processed_metrics.append(col)
+
+        for m_key in processed_metrics:
+            m_label = METRICS_REGISTRY.get(m_key, {}).get("label", m_key)
+            data_points = df[m_key].tolist()
+            
+            # Extraer formato de la métrica
+            metric_format = None
+            metric_def = METRICS_REGISTRY.get(m_key, {})
+            if "format" in metric_def and isinstance(metric_def["format"], dict):
+                from app.schemas.payloads import MetricFormat
+                metric_format = MetricFormat(**metric_def["format"])
+            
+            datasets.append(Dataset(label=m_label, data=data_points, format=metric_format))
 
     # ... (existing Dataset generation above)
     
@@ -423,11 +440,26 @@ def execute_semantic_query(
     intent: str, 
     cube_query: Dict[str, Any], 
     metadata: Optional[Dict[str, Any]] = None,
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    comparison_groups: Optional[List[Dict[str, Any]]] = None  # NUEVO
 ) -> Dict[str, Any]:
     """
     Herramienta Maestra (Nexus v2.1).
     Ejecuta consultas analíticas y retorna VisualDataPackage.
+    
+    Args:
+        intent: Tipo de análisis (TREND, COMPARISON, SNAPSHOT, LISTING)
+        cube_query: Query semántica con metrics, dimensions, filters
+        metadata: Metadatos adicionales (título, visualización, etc.)
+        limit: Límite de resultados
+        comparison_groups: (NUEVO) Lista de grupos para comparaciones flexibles.
+            Ejemplo: [
+                {"label": "2024 Q1", "filters": {"anio": 2024, "trimestre": 1}},
+                {"label": "2025 Q1", "filters": {"anio": 2025, "trimestre": 1}}
+            ]
+    
+    Returns:
+        Dict con VisualDataPackage
     """
     import time
     t_start = time.time()
@@ -489,38 +521,66 @@ def execute_semantic_query(
         if req.intent not in ["COMPARISON", "TREND", "SNAPSHOT", "LISTING"]:
             raise ValueError(f"Intent inválido: {req.intent}")
         
+        
         # --- SMART LIMITS para LISTING ---
-        # Para queries de listado, limitar a 50 registros por defecto para evitar timeouts
-        if req.intent == "LISTING" and not limit:
-            limit = 50
-            logger.info(f"🔍 [TRACE] LISTING query: aplicando límite default de {limit} registros")
+        # Permitir límite configurable desde cube_query con validación
+        MAX_LISTING_LIMIT = 5000  # Límite máximo de seguridad
+        DEFAULT_LISTING_LIMIT = 50  # Límite por defecto
+        
+        if req.intent == "LISTING":
+            if limit:
+                # Si se especificó un límite explícito, validarlo
+                limit = min(limit, MAX_LISTING_LIMIT)
+                logger.info(f"🔍 [TRACE] LISTING query: usando límite solicitado de {limit} registros (max: {MAX_LISTING_LIMIT})")
+            else:
+                # Límite por defecto
+                limit = DEFAULT_LISTING_LIMIT
+                logger.info(f"🔍 [TRACE] LISTING query: aplicando límite default de {limit} registros")
         elif limit is None:
-            limit = 1000  # Default para queries de métricas
+            limit = 5000  # Default para queries de métricas
         
         # 2. Generar SQL (usando el Registry para validar dimensiones/métricas)
         for f in req.cube_query.filters:
+            # --- STATIC GROUP EXPANSION (Registry) ---
+            # Si el valor del filtro coincide con una clave en 'value_groups', expandirlo.
+            expanded_values = []
+            raw_values = f.value if isinstance(f.value, list) else [f.value]
+            
+            dim_def = DIMENSIONS_REGISTRY.get(f.dimension, {})
+
+            # [NEW] Normalización de Casing (Force Upper)
+            if dim_def.get("force_upper"):
+                # Preservar el tipo si no es string, pero si es string, upper
+                raw_values = [str(v).upper() if isinstance(v, str) else v for v in raw_values]
+                logger.info(f"🔠 [CASE NORM] Normalizando valores de {f.dimension} a UPPERCASE: {raw_values}")
+
+            has_groups = "value_groups" in dim_def
+            
+            for val in raw_values:
+                if has_groups and val in dim_def["value_groups"]:
+                    logger.info(f"✨ [GROUP EXPANSION] Expandiendo '{val}' -> {dim_def['value_groups'][val]}")
+                    expanded_values.extend(dim_def["value_groups"][val])
+                else:
+                    expanded_values.append(val)
+            
+            # Actualizar filters_dict
             if f.dimension in filters_dict:
                 current_val = filters_dict[f.dimension]
                 if not isinstance(current_val, list):
                     current_val = [current_val]
-                if isinstance(f.value, list):
-                    current_val.extend(f.value)
-                else:
-                    current_val.append(f.value)
+                current_val.extend(expanded_values)
                 filters_dict[f.dimension] = list(set(current_val))
             else:
-                filters_dict[f.dimension] = f.value
+                # Si es un solo valor y no es lista, mantenerlo simple, sino lista
+                if len(expanded_values) == 1:
+                    filters_dict[f.dimension] = expanded_values[0]
+                else:
+                    filters_dict[f.dimension] = list(set(expanded_values))
         
         # --- CONTEXTUAL TITLE GENERATION ---
-        context_str = _generate_context_string(filters_dict)
+        # El agente ya incluye contexto en title_suggestion, no duplicar
         base_title = req.metadata.title_suggestion or "Análisis de Datos"
-        
-        # Si el LLM ya puso contexto en el título, tratamos de no duplicar (heurística simple)
-        final_title = base_title
-        # Si el contexto es relevante y no parece estar ya en el título, lo agregamos
-        if context_str:
-             if " | " not in base_title: # Evitar doble barra si el LLM ya lo intentó
-                 final_title = f"{base_title} [{context_str}]"
+        final_title = base_title  # Usar título del agente sin modificar
         
         req.metadata.title_suggestion = final_title
         # -----------------------------------
@@ -533,6 +593,47 @@ def execute_semantic_query(
         }
         if limit:
             query_params["limit"] = limit
+        
+        if comparison_groups:
+            query_params["comparison_groups"] = comparison_groups
+
+        # --- DYNAMIC AD-HOC GROUPS ---
+        # Si el LLM definió grupos ad-hoc, los pasamos al generador
+        if hasattr(req.cube_query, "adhoc_groups") and req.cube_query.adhoc_groups:
+            query_params["adhoc_groups"] = req.cube_query.adhoc_groups
+            
+            # También debemos asegurar que los valores del grupo estén permitidos en los filtros
+            # (Si no hay filtro explícito, el grupo actúa como filtro implícito)
+            for grp in req.cube_query.adhoc_groups:
+                if grp.dimension not in filters_dict:
+                    logger.info(f"🧩 [AD-HOC FILTER] Aplicando filtro implícito para grupo: {grp.label}")
+                    filters_dict[grp.dimension] = grp.values
+                else:
+                    # Si ya hay filtro, aseguramos que los valores del grupo esten incluidos?
+                    # Por ahora asumimos que el filtro explícito manda o ya incluye lo necesario.
+                    pass
+
+        # --- AUTO-INJECT INFORMATIVE METRICS (Tooltip Enhancement) ---
+        # Si la métrica tiene "informative_metrics" definidos en Registry,
+        # los agregamos a la query aunque el usuario no los haya pedido explícitamente.
+        # Esto sirve para que el frontend tenga datos de contexto (ej: Denominador en un Ratio).
+        
+        # 1. Identificar métricas extra necesarias
+        extra_metrics = set()
+        for m_key in req.cube_query.metrics:
+            m_def = METRICS_REGISTRY.get(m_key, {})
+            if "informative_metrics" in m_def:
+                for info_m in m_def["informative_metrics"]:
+                    if info_m not in req.cube_query.metrics:
+                        extra_metrics.add(info_m)
+        
+        # 2. Inyectar en query_params si hay extras
+        if extra_metrics:
+            logger.info(f"💉 [AUTO-INJECT] Agregando métricas informativas: {extra_metrics}")
+            # Importante: Agregamos al final para no alterar el orden de las métricas principales
+            # (que determina el color/orden principal del gráfico)
+            query_params["metrics"] = req.cube_query.metrics + list(extra_metrics)
+        # -------------------------------------------------------------
 
         timing['prep'] = time.time() - t_step
         t_step = time.time()
@@ -544,9 +645,67 @@ def execute_semantic_query(
         timing['sql_gen'] = time.time() - t_step
         t_step = time.time()
         
-        # 3. Ejecutar en BigQuery
+        
+        # 3. Ejecutar en BigQuery con estrategia inteligente para LISTING
         bq = get_bq_service()
-        df = bq.execute_query(sql_query)
+        
+        # Para LISTING, ejecutar COUNT primero para determinar límite óptimo
+        overflow_detected = False
+        total_available = None
+        
+        if req.intent == "LISTING":
+            # Paso 1: Ejecutar COUNT para saber cuántos registros hay
+            count_sql = sql_query.split("LIMIT")[0]  # Remover LIMIT
+            count_sql = f"SELECT COUNT(*) as total FROM ({count_sql}) AS subquery"
+            
+            try:
+                count_df = bq.execute_query(count_sql)
+                total_available = int(count_df.iloc[0]['total'])
+                logger.info(f"📊 [COUNT] Total de registros disponibles: {total_available}")
+                
+                # Paso 2: Decidir estrategia según total
+                if total_available > 1000:
+                    # Caso 1: Más de 1000 → Pedir refinamiento
+                    logger.warning(f"⚠️ [OVERFLOW] {total_available} registros encontrados. Requiere refinamiento.")
+                    
+                    # Retornar mensaje de error amigable
+                    pkg = VisualDataPackage(
+                        summary=f"🔍 Se encontraron {total_available:,} registros.\n\n"
+                                f"⚠️ Esta consulta supera el límite recomendado de 1,000 registros.\n\n"
+                                f"💡 **Por favor, refina tu consulta** agregando más filtros específicos:\n"
+                                f"   • Filtra por división/área específica\n"
+                                f"   • Limita a un periodo más corto (mes, trimestre)\n"
+                                f"   • Agrega filtros adicionales (segmento, posición, etc.)\n\n"
+                                f"O solicita explícitamente: 'Muestra los primeros 1000 registros'",
+                        content=[]
+                    )
+                    return pkg.model_dump()
+                
+                elif total_available <= limit:
+                    # Caso 2: Menos registros que el límite → Traer todos sin advertencia
+                    logger.info(f"✅ [OPTIMAL] {total_available} registros ≤ límite {limit}. Trayendo todos.")
+                    df = bq.execute_query(sql_query.replace(f"LIMIT {limit}", f"LIMIT {total_available}"))
+                    overflow_detected = False
+                
+                else:
+                    # Caso 3: Entre límite y 1000 → Traer con límite y advertir
+                    logger.info(f"⚠️ [PARTIAL] {total_available} registros > límite {limit}. Mostrando primeros {limit}.")
+                    df = bq.execute_query(sql_query)
+                    overflow_detected = True
+                    
+            except Exception as e:
+                # Si COUNT falla, usar estrategia legacy (LIMIT+1)
+                logger.warning(f"⚠️ COUNT query falló: {e}. Usando estrategia legacy.")
+                sql_with_overflow = sql_query.replace(f"LIMIT {limit}", f"LIMIT {limit + 1}")
+                df = bq.execute_query(sql_with_overflow)
+                
+                if len(df) > limit:
+                    overflow_detected = True
+                    df = df.head(limit)
+                    total_available = None  # No sabemos el total exacto
+        else:
+            # Para otros intents, ejecutar normalmente
+            df = bq.execute_query(sql_query)
         
         timing['bq_exec'] = time.time() - t_step
         t_step = time.time()
@@ -591,15 +750,41 @@ def execute_semantic_query(
         if df.empty:
             # Retornar paquete vacío (sin content) o con mensaje de error controlado
             pkg = VisualDataPackage(
-                summary=f"No se encontraron datos para: {req.metadata.title_suggestion}",
+                summary=f"La consulta devolvió 0 casos. No se encontraron datos para: {req.metadata.title_suggestion}",
                 content=[]
             )
             return pkg.model_dump()
         
+        
         # Advertencia si el resultado fue truncado (LISTING queries)
         truncation_warning = None
-        # Si tenemos un conteo total real > filas actuales
-        if total_records_found > len(df):
+        
+        # Opción 1: Overflow detectado con COUNT exacto
+        if overflow_detected and total_available:
+            term = "registros"
+            truncation_warning = f"⚠️ Mostrando {len(df)} de {total_available:,} {term} encontrados."
+            # Smart Suggestion basado en total
+            if total_available <= 200:
+                truncation_warning += f"\n💡 Solicita: 'Muestra los {total_available} registros' para ver todos."
+            elif total_available <= 1000:
+                truncation_warning += f"\n💡 Solicita: 'Muestra {total_available} registros' o refina filtros para ser más específico."
+            else:
+                truncation_warning += f"\n💡 Refina tus filtros para obtener resultados más específicos."
+            logger.warning(f"LISTING truncado: {len(df)} mostrados de {total_available} totales.")
+        
+        # Opción 2: Overflow detectado sin COUNT exacto (legacy fallback)
+        elif overflow_detected:
+            term = "registros"
+            truncation_warning = f"⚠️ Mostrando {len(df)} de {len(df)}+ {term} encontrados (puede haber más datos)."
+            # Smart Suggestion
+            if limit < 1000:
+                truncation_warning += f"\n💡 Para ver más, solicita: 'Muestra 200 registros' o refina tus filtros para ser más específico."
+            else:
+                truncation_warning += f"\n💡 Refina tus filtros para obtener resultados más específicos."
+            logger.warning(f"LISTING truncado: {len(df)} mostrados, hay más registros disponibles.")
+        
+        # Opción 3: Si tenemos un conteo total real > filas actuales (otro legacy path)
+        elif total_records_found > len(df):
             term = "registros"
             truncation_warning = f"⚠️ Mostrando {len(df)} de {total_records_found} {term} encontrados."
             # Smart Suggestion para ver todo
@@ -627,20 +812,31 @@ def execute_semantic_query(
         # 5. Generar Summary (con contador de registros)
         visual_count = len(df)
         
-        # Usamos el título enriquecido para el summary
-        summary = f"{final_title}"
-        if context_str and context_str not in summary: # Fallback por si acaso
-             summary += f"\nContexto: {context_str}"
-        
-        # Resumen de cantidad
-        if total_records_found > visual_count:
-             summary += f"\n({visual_count} listados de {total_records_found} totales)"
+        # Construir summary según intent
+        if req.intent == "LISTING":
+            # Para LISTING, summary es solo advertencia/conteo (título ya está en la tabla)
+            if truncation_warning:
+                # Caso 1: Hay truncamiento → Solo mostrar advertencia
+                summary = truncation_warning
+            elif total_available:
+                # Caso 2: Mostramos todos → Conteo simple
+                summary = f"✅ {total_available:,} registros encontrados."
+            else:
+                # Caso 3: Fallback
+                summary = f"✅ {visual_count} registros encontrados."
         else:
-             summary += f"\n({visual_count} registros encontrados)"
-        
-        # Agregar advertencia detallada
-        if truncation_warning:
-            summary = f"{summary}\n\n{truncation_warning}"
+            # Para otros intents, usar título completo
+            summary = f"{final_title}"
+            
+            # Resumen de cantidad (solo para no-LISTING)
+            if total_available and total_available > visual_count:
+                summary += f"\n({visual_count} de {total_available:,} registros)"
+            elif total_records_found > visual_count:
+                summary += f"\n({visual_count} listados de {total_records_found} totales)"
+            
+            # Agregar advertencia si existe
+            if truncation_warning:
+                summary = f"{summary}\n\n{truncation_warning}"
         
         timing['visualization'] = time.time() - t_step
         timing['total'] = time.time() - t_start

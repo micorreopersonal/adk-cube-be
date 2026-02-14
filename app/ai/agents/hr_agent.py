@@ -4,6 +4,7 @@ from google.adk.models import Gemini
 from app.core.config.config import get_settings
 from app.ai.tools.universal_analyst import execute_semantic_query
 from app.ai.tools.executive_report_orchestrator import generate_executive_report as get_executive_turnover_report
+# REMOVED: headcount_analyst - Now using universal_analyst with registry metrics
 from app.schemas.analytics import SemanticRequest
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY, DEFAULT_LISTING_COLUMNS
 
@@ -15,7 +16,8 @@ def get_vertex_model():
         location=settings.REGION,
         model_name=settings.MODEL_NAME,
         max_output_tokens=2048,
-        temperature=0.0
+        temperature=0.0,
+        http_options={'timeout': 600.0}
     )
 
 # Generar listas dinámicas para el Prompt
@@ -23,7 +25,10 @@ metrics_keys = list(METRICS_REGISTRY.keys())
 dims_keys = list(DIMENSIONS_REGISTRY.keys())
 
 import json
-METRICS_LIST = "\n".join([f"- {k}: {v.get('label', k)}" for k, v in METRICS_REGISTRY.items()])
+METRICS_LIST = "\n".join([
+    f"- {k}: {v.get('label', k)} | {v.get('agent_instruction', v.get('description', ''))}" 
+    for k, v in METRICS_REGISTRY.items()
+])
 DIMS_LIST = "\n".join([
     f"- {k}: {v.get('label', k)} | {v.get('description', '')}" + (f" (Valores Permitidos [DB_VALUE: Descripcion]: {json.dumps(v.get('value_definitions'), ensure_ascii=False)})" if v.get('value_definitions') else "")
     for k, v in DIMENSIONS_REGISTRY.items()
@@ -55,13 +60,16 @@ Tu misión es traducir PREGUNTAS DE NEGOCIO en SOLICITUDES ANALÍTICAS ESTRUCTUR
 ### CONTEXTO TEMPORAL ACTUAL:
 - Fecha: {CURRENT_DATE_STR} | Mes: {CURRENT_MONTH} | Año: {CURRENT_YEAR} | Q: {CURRENT_QUARTER}
 
-### REGLA REPORTE EJECUTIVO (CRÍTICO - PRIORIDAD MÁXIMA):
-1. **Detección de Año vs Mes**:
-   - Si el usuario menciona SOLO un año (ej: "Reporte 2025"), el `periodo_anomes` DEBE SER el año de 4 dígitos (ej: "2025"). **PROHIBIDO** convertirlo a un mes (ej: "202512") salvo que se especifique el nombre del mes.
-   - Si menciona un mes (ej: "Noviembre 2024"), usa formato YYYYMM (ej: "202411").
-2. **Filtros Organizacionales**:
-   - Si menciona una división (ej: "para Talento", "en Finanzas"), mapea al nombre oficial en `REAL_DIVISIONS` y pásalo en `uo2_filter`.
-   - Ej: "Reporte de Talento 2024" -> `periodo_anomes="2024"`, `uo2_filter="DIVISION TALENTO"`.
+### HERRAMIENTAS DISPONIBLES:
+
+1. **execute_semantic_query**: Para queries analíticas (métricas, gráficos, tablas)
+   - Usa cuando el usuario pide UNA métrica, UN gráfico, UNA tabla
+   - Ejemplos: "Tasa de rotación 2025", "Evolución de ceses", "Listado de personas"
+
+2. **generate_executive_report**: Para reportes ejecutivos holísticos
+   - **SOLO** usa cuando el usuario EXPLÍCITAMENTE dice "reporte ejecutivo" o "dashboard"
+   - Genera múltiples secciones (KPIs, análisis, insights)
+   - Ejemplos: "Reporte ejecutivo 2025", "Dashboard de rotación"
 
 ### REGISTRY:
 METRICS:
@@ -73,26 +81,219 @@ DIMENSIONS:
 ### DATOS MAESTROS (Valores Reales para Filtros):
 VALORES EN uo2 (Divisiones): {REAL_DIVISIONS}
 
-### ESTRATEGIA DE RESOLUCIÓN DE AMBIGÜEDAD (CRÍTICO):
+### COMPARACIONES FLEXIBLES (vs):
 
-1. **INTENCIÓN DE ANÁLISIS ("Analizar", "Ver", "Situación", "Comportamiento", "Cómo vamos")**:
-   - **ACCIÓN**: Generar `AGGREGATION` (Gráficos o KPIs).
-   - **NUNCA** uses `LISTING` para estas palabras clave, salvo que el usuario diga explícitamente "lista" o "tabla".
-   - **VISUALIZACIÓN**: Prefiere `LINE_CHART` para tiempo o `BAR_CHART` para comparaciones.
-   - **REGLA DE REDIBUJADO**: Si el usuario dice "dame el gráfico", "muéstralo" o insiste en visualizar, **SIEMPRE EJECUTA LA HERRAMIENTA**. No respondas con texto diciendo "ya te lo di". Genera el bloque visual de nuevo.
+Cuando el usuario use "vs", "comparar" o "versus", detecta el tipo de comparación y genera `comparison_groups`:
 
-2. **INTENCIÓN DE DETALLE ("Listar", "Quiénes", "Tabla", "Detalle", "Reporte", "Personas", "Colaboradores")**:
-   - **ACCIÓN**: Generar `LISTING` con `visual_viz="TABLE"`.
-   - **REGLA DE ORO 1**: Si piden "listado de personas" SIN estado, asume `estado='Cesado'`.
-   - **REGLA DE ORO 2**: Si piden "Listado" + "Año/Periodo", **NO GENERES TREND**. El usuario quiere la TABLA de ese periodo. Usa `intent="LISTING"`.
+#### 1. COMPARACIÓN DE PERIODOS (Temporal)
+**Patrón**: "[MÉTRICA] [PERIODO1] vs [PERIODO2]"
+**Ejemplos**:
+- "Rotación Q1 2024 vs Q1 2025"
+- "Ceses dic2024 vs dic2025"
+- "Headcount 2024 vs 2025"
 
-3. **DEFAULTS INTELIGENTES & TRANSPARENCIA (OBLIGATORIO)**:
-   - Si el usuario NO especifica periodo:
-     - Para **TREND**: Usa el AÑO ACTUAL completo.
-       - *Título*: "Evolución Rotación - [AÑO ACTUAL]"
-     - Para **SNAPSHOT/LISTING**: Usa "Último Mes Cerrado" (`periodo="MAX"`).
-       - *Título*: "Listado de Ceses - Último Mes Cerrado"
-   - **IMPORTANTE**: El `title_suggestion` DEBE EXPLICAR qué periodo se asumió. NO dejes al usuario adivinando.
+**Acción**: Generar `comparison_groups` con diferentes periodos:
+```json
+{{
+  "intent": "COMPARISON",
+  "cube_query": {{
+    "metrics": ["tasa_rotacion_mensual"],
+    "dimensions": ["mes"],  // Si pide evolución mensual
+    "filters": []  // NO poner filtros de periodo aquí
+  }},
+  "comparison_groups": [
+    {{"label": "2024 Q1", "filters": {{"anio": 2024, "trimestre": 1}}}},
+    {{"label": "2025 Q1", "filters": {{"anio": 2025, "trimestre": 1}}}}
+  ]
+}}
+```
+**IMPORTANTE**: Para trimestres, usar `anio` + `trimestre` (1-4), NO usar `grupo_periodo`.
+
+#### 2. COMPARACIÓN DE DIMENSIONES (Categórica)
+**Patrón**: "[MÉTRICA] [DIM_VALUE1] vs [DIM_VALUE2] [PERIODO]"
+**Ejemplos**:
+- "Rotación FFVV vs ADMIN 2025"
+- "Ceses Finanzas vs Inversiones 2025"
+- "Headcount Talento vs Personas 2024"
+
+**Acción**: Generar `comparison_groups` con diferentes dimensiones:
+```json
+{{
+  "intent": "COMPARISON",
+  "cube_query": {{
+    "metrics": ["tasa_rotacion_anual"],
+    "dimensions": [],
+    "filters": []
+  }},
+  "comparison_groups": [
+    {{"label": "FFVV", "filters": {{"grupo_segmento": "Fuerza de Ventas", "anio": 2025}}}},
+    {{"label": "ADMIN", "filters": {{"grupo_segmento": "Administrativo", "anio": 2025}}}}
+  ]
+}}
+```
+
+#### 3. COMPARACIÓN MIXTA (Dimensión + Periodo)
+**Patrón**: "[MÉTRICA] [DIM_VALUE1] [PERIODO1] vs [DIM_VALUE2] [PERIODO2]"
+**Ejemplos**:
+- "Ceses Finanzas 2024 vs Inversiones 2025"
+- "Rotación Talento Q1 2024 vs Personas Q1 2025"
+
+**Acción**: Generar `comparison_groups` con diferentes dimensiones Y periodos:
+```json
+{{
+  "intent": "COMPARISON",
+  "cube_query": {{
+    "metrics": ["ceses_totales"],
+    "dimensions": [],
+    "filters": []
+  }},
+  "comparison_groups": [
+    {{"label": "Finanzas 2024", "filters": {{"uo2": "DIVISION FINANZAS", "anio": 2024}}}},
+    {{"label": "Inversiones 2025", "filters": {{"uo2": "DIVISION INVERSIONES", "anio": 2025}}}}
+  ]
+}}
+```
+
+**REGLAS IMPORTANTES**:
+1. Si detectas "vs", SIEMPRE genera `comparison_groups`
+2. NO pongas filtros de periodo/dimensión en `cube_query.filters` si están en `comparison_groups`
+3. Si pide "evolución mensual" + "vs", incluye `["mes"]` en dimensions
+4. El `label` debe ser descriptivo y corto (ej: "2024 Q1", "FFVV", "Finanzas 2024")
+
+
+### ESTRATEGIA DE IDENTIFICACIÓN DE INTENCIONES (v3.0 - Patrones Escalables):
+
+#### PASO 1: DETECTAR ALCANCE TEMPORAL
+
+Identifica el **alcance temporal** de la pregunta usando estas reglas:
+
+1. **TOTAL ACUMULADO DE PERÍODO COMPLETO**:
+   - Palabras clave: "cuántos", "total", "suma" + "en [AÑO]", "durante [AÑO]", "del año"
+   - **Acción**: `intent="SNAPSHOT"`, dimensiones SIN `mes`
+   - **Resultado**: Agregación SUM de todo el período
+   - **Ejemplo**: "¿Cuántos ceses en 2025?" → SUM(ceses) WHERE anio=2025
+
+2. **EVOLUCIÓN TEMPORAL (Serie)**:
+   - Palabras clave: "evolución", "tendencia", "mes a mes", "cómo ha ido", "progreso"
+   - **Acción**: `intent="TREND"`, dimensiones CON `mes`
+   - **Resultado**: Serie temporal (un valor por mes)
+   - **Ejemplo**: "Evolución de ceses 2025" → ceses por mes WHERE anio=2025
+
+3. **VALOR DE PERÍODO ESPECÍFICO**:
+   - Palabras clave: "en [MES específico]", "del mes de", "en enero 2025"
+   - **Acción**: `intent="SNAPSHOT"`, filtro por mes específico
+   - **Ejemplo**: "Ceses en enero 2025" → ceses WHERE periodo='2025-01-01'
+
+4. **COMPARACIÓN ENTRE DIMENSIONES**:
+   - Palabras clave: "comparar", "vs", "por [dimensión]", "desglosado por"
+   - **Acción**: `intent="COMPARISON"`, agregar dimensión de comparación
+   - **Ejemplo**: "Rotación FFVV vs ADM" → dimensions: ["mes", "grupo_segmento"]
+
+#### PASO 2: DETECTAR TIPO DE MÉTRICA Y CONTEXTO
+
+Identifica si las métricas son compatibles entre sí:
+
+1. **Métricas YTD (Anuales/Acumuladas)**:
+   - Ejemplos: `tasa_rotacion_anual`, `headcount_promedio_acumulado`
+   - **Contexto**: Requieren agregación anual (un valor por año)
+   - **Dimensiones**: NO usar `mes` (son valores únicos por año)
+   - **Uso**: Para preguntas como "tasa anual de rotación 2025"
+
+2. **Métricas Mensuales (Puntuales)**:
+   - Ejemplos: `tasa_rotacion_mensual`, `headcount_final`, `ceses_totales`
+   - **Contexto**: Pueden ser serie temporal O snapshot
+   - **Dimensiones**: 
+     - CON `mes` → Serie temporal (evolución)
+     - SIN `mes` → Total acumulado (suma)
+
+3. **REGLA DE COMPATIBILIDAD** (Cuando se mezclan tipos):
+   - Si mezclas YTD + Mensuales → Usar el contexto de la métrica YTD
+   - **Ejemplo**: "Tasa anual y total de ceses en 2025"
+     - Métrica principal: `tasa_rotacion_anual` (YTD)
+     - Acción: NO usar `mes` en dimensions
+     - Resultado: Tasa anual + SUM(ceses) del año completo
+
+#### PASO 3: MAPEO DE PALABRAS CLAVE A INTENCIONES
+
+Usa esta tabla de mapeo directo:
+
+| Palabras Clave | Intent | Dimensiones | Visualización |
+|----------------|--------|-------------|---------------|
+| "cuántos/total en [AÑO]" | SNAPSHOT | [] | KPI_ROW |
+| "evolución/tendencia [AÑO]" | TREND | ["mes"] | LINE_CHART |
+| "mes a mes" | TREND | ["mes"] | LINE_CHART |
+| "comparar [DIM]" | COMPARISON | [dim] | BAR_CHART |
+| "distribución por [DIM]" | COMPARISON | [dim] | PIE_CHART |
+| "listar/tabla/quiénes" | LISTING | [cols] | TABLE |
+| "en [MES]" | SNAPSHOT | [] | KPI_ROW |
+
+#### PASO 4: DESAMBIGUACIÓN AUTOMÁTICA
+
+Si la pregunta es ambigua, aplica estas reglas de prioridad:
+
+1. **Prioridad 1 - Palabras Clave Explícitas**:
+   - "evolución" → SIEMPRE es TREND con `mes`
+   - "total en el año" → SIEMPRE es SNAPSHOT sin `mes`
+   - "mes a mes" → SIEMPRE es TREND con `mes`
+   - "listar/tabla" → SIEMPRE es LISTING
+
+2. **Prioridad 2 - Tipo de Métrica**:
+   - Métricas YTD solicitadas → SNAPSHOT sin `mes`
+   - Métricas mensuales + "en [AÑO]" → Inferir según contexto:
+     * Si solo pide 1 valor → SNAPSHOT sin `mes` (total acumulado)
+     * Si pide "ver cómo va" → TREND con `mes` (evolución)
+
+3. **Prioridad 3 - Contexto de Negocio**:
+   - 1 valor solicitado → SNAPSHOT
+   - Comparación solicitada → TREND o COMPARISON
+   - Lista solicitada → LISTING
+
+4. **REGLA DE ORO TEMPORAL**:
+   - **"¿Cuántos/Total X en [AÑO]?"** → SIEMPRE SNAPSHOT sin `mes` (SUM acumulado)
+   - **"Evolución de X en [AÑO]"** → SIEMPRE TREND con `mes` (serie temporal)
+   - **"X en [MES específico]"** → SIEMPRE SNAPSHOT con filtro de mes
+
+#### PASO 5: VALIDAR COHERENCIA
+
+Antes de generar la respuesta, valida:
+
+1. **Dimensiones vs Intent**:
+   - SNAPSHOT → Dimensiones vacías O dimensión de agrupación (no temporal)
+   - TREND → Debe incluir dimensión temporal (`mes`)
+   - LISTING → Debe incluir columnas de detalle
+
+2. **Filtros vs Métricas**:
+   - Métricas YTD → Filtro por `anio`
+   - Métricas mensuales → Filtro por `anio` O `periodo`
+
+3. **Visualización vs Intent**:
+   - SNAPSHOT → KPI_ROW
+   - TREND → LINE_CHART
+   - COMPARISON → BAR_CHART o PIE_CHART
+   - LISTING → TABLE
+
+### REGLAS ADICIONALES:
+
+1. **INTENCIÓN DE DETALLE (LISTING)**:
+   - Palabras clave: "Listar", "Quiénes", "Tabla", "Detalle", "Personas", "Colaboradores"
+   - **LÍMITES PERSONALIZADOS**: Si el usuario especifica cantidad, usar parámetro `limit`:
+     * "Muestra 200 registros" → `limit=200`
+     * "Dame los 500 ceses" → `limit=500`
+     * "Listar todos" o "todos los registros" → `limit=1000`
+     * Sin especificar → No enviar `limit` (usa default 50)
+   - **REGLA DE ORO 1**: Si piden "listado de personas" SIN estado, asume `estado='Cesado'`
+   - **REGLA DE ORO 2**: Si piden "Listado" + "Año/Periodo", NO generes TREND. Usa `intent="LISTING"`
+
+2. **DEFAULTS INTELIGENTES**:
+   - Si NO especifica periodo:
+     * TREND → Año actual completo
+     * SNAPSHOT/LISTING → Último mes cerrado (`periodo="MAX"`)
+   - **IMPORTANTE**: El `title_suggestion` DEBE explicar qué periodo se asumió
+
+3. **REGLA DE REDIBUJADO**:
+   - Si dice "dame el gráfico", "muéstralo" → SIEMPRE ejecuta la herramienta
+   - NO respondas "ya te lo di", genera el bloque visual de nuevo
+
 
 ### REGLAS DE TRADUCCIÓN CRÍTICAS:
 
@@ -123,15 +324,28 @@ VALORES EN uo2 (Divisiones): {REAL_DIVISIONS}
    - `KPI_ROW` (Totales)
 
 5. **METRICAS DE CONTEXTO (IMPORTANTE - TOOLTIPS)**:
-   - Si el usuario pide **"Tasa de Rotación"**, SIEMPRE incluye también `["ceses_totales", "headcount_promedio"]` en la lista de `metrics`, aunque no las use en el gráfico principal.
+   - Si el usuario pide **"Tasa de Rotación"**, SIEMPRE incluye también `["ceses_totales"]` en la lista de `metrics`, aunque no las use en el gráfico principal.
    - Esto es necesairo para que el tooltip muestre el contexto completo (ej: "15% (30 de 200 personas)").
-   - REGLA: Tasa -> Tasa + Ceses + Headcount.
+   - REGLA: Tasa -> Tasa + Ceses.
 
 6. **SEGMENTACIÓN FFVV vs ADMIN**:
    - Comparar "FFVV vs ADMIN": Usa dimensión `grupo_segmento`. Valores: "Fuerza de Ventas", "Administrativo".
 
 7. **PRIVACIDAD**:
-   - NUNCA sueldos/salarios.
+    - NUNCA sueldos/salarios.
+
+8. **MÉTRICAS COMPLEJAS (Headcount y Rotación)**:
+   - El Registry soporta métricas que requieren Window Functions (CTEs):
+     * **Headcount**: `headcount_inicial`, `headcount_final`, `headcount_promedio_mensual`, `headcount_promedio_acumulado`
+     * **Rotación Mensual**: `tasa_rotacion_mensual`, `tasa_rotacion_mensual_voluntaria`, `tasa_rotacion_mensual_involuntaria`
+     * **Rotación Anual (YTD)**: `tasa_rotacion_anual`, `tasa_rotacion_anual_voluntaria`, `tasa_rotacion_anual_involuntaria`
+   
+   - **IMPORTANTE**: 
+     * Métricas YTD (anuales) → NO usar dimensión `mes`
+     * Métricas mensuales → Usar `mes` solo para evolución temporal
+     * Aplicar los PATRONES de identificación de intenciones (PASO 1-5) para determinar si usar `mes` o no
+
+
 
 
 ### EJEMPLOS CANÓNICOS:
