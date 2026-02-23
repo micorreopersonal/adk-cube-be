@@ -98,6 +98,13 @@ def build_ytd_comparison_with_cte(
 {chr(10).join(case_when_parts)}
     END AS comparison_group"""
     
+    # Mapeo de métricas simples a columnas del CTE headcount_base
+    CTE_METRIC_MAPPING = {
+        "ceses_totales": "ceses",
+        "ceses_voluntarios": "ceses_voluntarios",
+        "ceses_involuntarios": "ceses_involuntarios"
+    }
+    
     # 4. Construir SELECT items
     select_items = [case_when_sql]
     
@@ -107,12 +114,24 @@ def build_ytd_comparison_with_cte(
     
     # Agregar métricas
     for metric in metrics:
+        if metric in CTE_METRIC_MAPPING:
+            col_name = CTE_METRIC_MAPPING[metric]
+            select_items.append(f"{col_name} AS {metric}")
+            continue
+
         metric_def = METRICS_REGISTRY.get(metric, {})
-        metric_sql = metric_def.get("sql", metric)
-        if metric_sql != metric:
-            select_items.append(f"{metric_sql} AS {metric}")
+        
+        # Si la métrica tiene requires_cte, su SQL ya es el nombre de la columna en el CTE
+        if metric_def.get("requires_cte") == "headcount_base":
+            col_name = metric_def.get("sql", metric)
+            select_items.append(f"{col_name} AS {metric}")
         else:
-            select_items.append(metric)
+            # Fallback for other metrics
+            metric_sql = metric_def.get("sql", metric)
+            if metric_sql != metric:
+                select_items.append(f"{metric_sql} AS {metric}")
+            else:
+                select_items.append(metric)
     
     # 5. Construir ORDER BY
     order_by_cols = []
@@ -121,7 +140,7 @@ def build_ytd_comparison_with_cte(
     order_by_cols.append("comparison_group ASC")
     
     # 6. Ensamblar SQL final
-    select_clause = ',\\n    '.join(select_items)
+    select_clause = ',\n    '.join(select_items)
     
     sql = f"""
 WITH {cte_sql}

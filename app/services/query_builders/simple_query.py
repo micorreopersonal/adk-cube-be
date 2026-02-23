@@ -12,6 +12,7 @@ Ejemplo:
 from typing import List, Dict, Any
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY
 from app.core.config.config import get_settings
+from app.services.query_builders.utils import build_where_clauses
 
 settings = get_settings()
 CUBE_SOURCE = f"`{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}`"
@@ -88,7 +89,7 @@ def build_simple_query(
         select_items.append(f"{metric_sql} AS {metric_key}")
     
     # WHERE
-    where_clauses = _build_where_clauses(filters)
+    where_clauses = build_where_clauses(filters, CUBE_SOURCE)
     where_block = " AND ".join(where_clauses) if where_clauses else "1=1"
     
     # GROUP BY
@@ -122,40 +123,3 @@ LIMIT {limit}
     return sql.strip()
 
 
-def _build_where_clauses(filters: Dict[str, Any]) -> List[str]:
-    """Construye cláusulas WHERE a partir de filtros."""
-    where_clauses = ["segmento != 'PRACTICANTE'"]
-    
-    if not filters:
-        return where_clauses
-    
-    for dim_key, value in filters.items():
-        # Obtener definición de dimensión
-        dim_def = DIMENSIONS_REGISTRY.get(dim_key)
-        if not dim_def:
-            continue
-        
-        col_sql = dim_def.get("sql", dim_key) if isinstance(dim_def, dict) else dim_key
-        
-        # Determinar si es numérico
-        is_numeric = False
-        if isinstance(dim_def, dict):
-            if dim_def.get("sorting") == "numeric" or dim_def.get("type") in ["integer", "float", "number", "numeric"]:
-                is_numeric = True
-        
-        # Formatear valor
-        def format_val(v):
-            if isinstance(v, (int, float)):
-                return str(v)
-            if isinstance(v, str) and is_numeric and v.replace(".", "", 1).isdigit():
-                return v
-            return f"'{v}'"
-        
-        # Construir condición
-        if isinstance(value, list):
-            vals = ", ".join([format_val(v) for v in value])
-            where_clauses.append(f"{col_sql} IN ({vals})")
-        else:
-            where_clauses.append(f"{col_sql} = {format_val(value)}")
-    
-    return where_clauses

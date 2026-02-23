@@ -4,7 +4,8 @@ from app.services.query_generator import build_analytical_query
 from app.schemas.analytics import SemanticRequest
 from app.schemas.payloads import (
     VisualDataPackage, KPIBlock, ChartBlock, TableBlock, 
-    KPIItem, ChartPayload, Dataset, ChartMetadata, TablePayload
+    KPIItem, ChartPayload, Dataset, ChartMetadata, TablePayload,
+    MetricFormat
 )
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY
 import pandas as pd
@@ -120,165 +121,157 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
     """Transforma un DF en estructura Chart.js."""
     
     # 1. Definir Ejes
-    # X Axis = Primera dimensión solicitada
-    x_dim = req.cube_query.dimensions[0] if req.cube_query.dimensions else "index"
+    if req.cube_query.dimensions:
+        x_dim = req.cube_query.dimensions[0]
+    elif "comparison_group" in df.columns:
+        x_dim = "comparison_group"
+    else:
+        x_dim = "index"
+
     x_meta = DIMENSIONS_REGISTRY.get(x_dim, {})
-    
-    # Grouping = Segunda dimensión (si existe)
     group_dim = req.cube_query.dimensions[1] if len(req.cube_query.dimensions) > 1 else None
     
-    # 2. Generar Datasets
     labels = []
     datasets = []
-    
+    consumed_as_informative = set() # Track metrics used as tooltips to avoid redundancy
+
+    # Helper para extraer formato
+    def get_format(m_key: str):
+        m_def = METRICS_REGISTRY.get(m_key, {})
+        if "format" in m_def and isinstance(m_def["format"], dict):
+            return MetricFormat(**m_def["format"])
+        return None
+
+    # Helper para construir related_datasets
+    def get_related(m_key: str, dataframe: pd.DataFrame, filter_col=None, filter_val=None):
+        m_def = METRICS_REGISTRY.get(m_key, {})
+        info_keys = m_def.get("informative_metrics", [])
+        related = []
+        for i_key in info_keys:
+            if i_key in dataframe.columns:
+                i_def = METRICS_REGISTRY.get(i_key, {})
+                
+                # Si estamos en modo agrupado, el dataframe ya es un subset
+                i_data = dataframe[i_key].tolist()
+                
+                related.append(Dataset(
+                    label=i_def.get("label", i_key),
+                    data=i_data,
+                    format=get_format(i_key)
+                ))
+                consumed_as_informative.add(i_key)
+        return related if related else None
+
+    # 2. Generar Datasets
     if group_dim:
         # MODO A: AGRUPADO (Multi-Series por una Dimensión, solo 1ra métrica)
-        # Respetamos el orden que viene de SQL para las etiquetas únicas
         raw_labels = df[x_dim].astype(str).unique().tolist()
         
         if x_meta.get("label_mapping"):
             mapping = x_meta["label_mapping"]
             labels = [mapping.get(str(lbl), lbl) for lbl in raw_labels]
         else:
-            # Data Hygiene: Replace "None" string from database with user-friendly text
             labels = ["Sin Especificar" if lbl == "None" or lbl == "nan" else lbl for lbl in raw_labels]
             
-        # Generar un dataset por cada grupo
         raw_groups = df[group_dim].unique().tolist()
-        
-        # Ordenar grupos (importante para que la leyenda sea consistente)
         group_meta = DIMENSIONS_REGISTRY.get(group_dim, {})
+        
+        # Sort groups logically
         try:
-            is_numeric = group_meta.get("sorting") == "numeric" or group_meta.get("type") == "temporal"
-            if is_numeric:
-                 # Intentar orden numérico si es posible
-                raw_groups.sort(key=lambda x: float(x) if str(x).replace('.','',1).isdigit() else str(x))
-            else:
-                raw_groups.sort(key=str)
+            raw_groups.sort(key=lambda x: float(x) if str(x).replace('.','',1).isdigit() else str(x))
         except:
             raw_groups.sort(key=str)
         
+        metric_key = req.cube_query.metrics[0] if req.cube_query.metrics else df.columns[0]
+        
         for g_val in raw_groups:
-            subset = df[df[group_dim] == g_val]
-            data_points = []
-            for lbl in raw_labels: # Usamos raw_labels para buscar en el DF
-                match = subset[subset[x_dim].astype(str) == lbl]
-                if not match.empty:
-                    y_val = match.iloc[0][req.cube_query.metrics[0]]
-                else:
-                    y_val = 0
-                data_points.append(y_val)
+            # Subset para este grupo
+            subset = df[df[group_dim] == g_val].copy()
             
-            # Mapear label del dataset si tiene mapping (ej: meses como series)
+            # Asegurar alineación con labels del eje X
+            data_points = []
+            for lbl in raw_labels:
+                match = subset[subset[x_dim].astype(str) == lbl]
+                data_points.append(match.iloc[0][metric_key] if not match.empty else 0)
+            
             ds_label = str(g_val)
             if group_meta.get("label_mapping"):
                 ds_label = group_meta["label_mapping"].get(str(g_val), str(g_val))
             
-            # Extraer formato de la métrica desde el registry
-            metric_format = None
-            if req.cube_query.metrics:
-                metric_def = METRICS_REGISTRY.get(req.cube_query.metrics[0], {})
-                if "format" in metric_def and isinstance(metric_def["format"], dict):
-                    from app.schemas.payloads import MetricFormat
-                    metric_format = MetricFormat(**metric_def["format"])
+            # En modo agrupado, related_datasets se aplica a la misma métrica pero filtrada por grupo
+            # Rebalanceamos el subset para que coincida con raw_labels para las métricas informativas
+            balanced_subset = []
+            for lbl in raw_labels:
+                match = subset[subset[x_dim].astype(str) == lbl]
+                if not match.empty:
+                    balanced_subset.append(match.iloc[0])
+                else:
+                    # Rellenar con ceros para métricas informativas si no hay datos
+                    row = {col: 0 for col in subset.columns}
+                    row[x_dim] = lbl
+                    balanced_subset.append(pd.Series(row))
             
-            datasets.append(Dataset(label=ds_label, data=data_points, format=metric_format))
+            df_balanced = pd.DataFrame(balanced_subset)
+            
+            datasets.append(Dataset(
+                label=ds_label,
+                data=data_points,
+                format=get_format(metric_key),
+                related_datasets=get_related(metric_key, df_balanced)
+            ))
             
     else:
         # MODO B: MULTI-MÉTRICA (Múltiples métricas como series independientes)
         raw_labels = df[x_dim].astype(str).tolist() if not df.empty else []
-        
-        # Mapeo de valores (ej: meses)
-        if x_meta.get("label_mapping"):
-            mapping = x_meta["label_mapping"]
-            labels = [mapping.get(str(lbl), lbl) for lbl in raw_labels]
-        else:
-            labels = raw_labels
-            
-        # CRITICAL FIX: Iterar sobre TODAS las columnas que sean métricas conocidas, 
-        # incluyendo las inyectadas automáticamente, no solo las de req.cube_query.metrics
-        # Para mantener orden, usamos req metrics primero, luego extras encontrados en DF
-        
+        labels = [x_meta.get("label_mapping", {}).get(str(lbl), lbl) for lbl in raw_labels]
+        if not x_meta.get("label_mapping"):
+            labels = ["Sin Especificar" if lbl == "None" or lbl == "nan" else lbl for lbl in labels]
+
+        # Identificar métricas a procesar (Solicitadas + Inyectadas)
         processed_metrics = []
-        # 1. Métricas solicitadas (Prioridad)
         for m_key in req.cube_query.metrics:
             if m_key in df.columns:
                 processed_metrics.append(m_key)
-        
-        # 2. Métricas extra (Inyectadas)
         for col in df.columns:
             if col in METRICS_REGISTRY and col not in processed_metrics and col not in req.cube_query.dimensions:
                 processed_metrics.append(col)
 
         for m_key in processed_metrics:
-            m_label = METRICS_REGISTRY.get(m_key, {}).get("label", m_key)
-            data_points = df[m_key].tolist()
-            
-            # Extraer formato de la métrica
-            metric_format = None
-            metric_def = METRICS_REGISTRY.get(m_key, {})
-            if "format" in metric_def and isinstance(metric_def["format"], dict):
-                from app.schemas.payloads import MetricFormat
-                metric_format = MetricFormat(**metric_def["format"])
-            
-            datasets.append(Dataset(label=m_label, data=data_points, format=metric_format))
+            datasets.append(Dataset(
+                label=METRICS_REGISTRY.get(m_key, {}).get("label", m_key),
+                data=df[m_key].tolist(),
+                format=get_format(m_key),
+                related_datasets=get_related(m_key, df)
+            ))
 
-    # ... (existing Dataset generation above)
+    # 3. Heuristic: Decluttering (Scale & Focus Management)
+    # Si hay Ratios (Tasa), movemos los Counts a tooltips globales solo si no fueron vinculados ya.
+    has_ratio = any(ds.format and ds.format.unit_type in ('percentage', 'ratio') for ds in datasets)
     
-    # 3. Handle PIE Specifics
-    # Si la visualización pedida es PIE_CHART, forzamos un único dataset y estructura simple
-    is_pie = req.metadata.requested_viz == "PIE_CHART"
+    final_datasets = []
+    tooltip_datasets = []
     
-    if is_pie:
-        # Asegurar colores distintos para cada slice en Pie (Chart.js lo hace auto, pero mejor si es explícito o simple)
-        # Por ahora enviamos estructura estándar, el frontend interpretará labels vs data
-        pass
+    if has_ratio:
+        for ds in datasets:
+            # Encontrar el key de la métrica original por su label para saber si fue consumida
+            # Nota: Esto es un poco frágil pero efectivo dada la estructura actual.
+            m_key = next((k for k, v in METRICS_REGISTRY.items() if v.get("label") == ds.label), ds.label)
+            
+            if ds.format and ds.format.unit_type in ('percentage', 'ratio'):
+                final_datasets.append(ds)
+            elif m_key not in consumed_as_informative:
+                tooltip_datasets.append(ds)
+        
+        if final_datasets:
+            datasets = final_datasets
 
-    # 3. Metadata
-    # Obtener el label de la primera métrica para el eje Y
-    metric_label = "Valor"
-    if req.cube_query.metrics:
-        metric_label = METRICS_REGISTRY.get(req.cube_query.metrics[0], {}).get("label", "Valor")
-
+    # Metadata
+    metric_label = METRICS_REGISTRY.get(req.cube_query.metrics[0], {}).get("label", "Valor") if req.cube_query.metrics else "Valor"
     meta = ChartMetadata(
         title=req.metadata.title_suggestion or "Análisis de Datos",
         y_axis_label=metric_label,
         show_legend=True
     )
-    
-    # Mapeo de subtipo
-    subtype_map = {
-        "BAR_CHART": "BAR",
-        "PIE_CHART": "PIE",
-        "LINE_CHART": "LINE"
-    }
-    subtype = subtype_map.get(str(req.metadata.requested_viz), "LINE")
-    
-    
-    # 4. Heuristic: Decluttering (Scale & Focus Management)
-    # If the chart contains "Percentage" metrics (Ratios), hide/exclude "Count" metrics 
-    # to avoid plotting distinct counts (e.g. 5, 20) against ratios (5%, 15%) on the same axis.
-    # We prefer Ratios as they are usually the primary intent when both are present.
-    
-    has_ratio = any(
-        ds.format and ds.format.unit_type in ('percentage', 'ratio') 
-        for ds in datasets
-    )
-    
-    tooltip_datasets = []
-    
-    if has_ratio:
-        primary_datasets = []
-        for ds in datasets:
-            if ds.format and ds.format.unit_type in ('percentage', 'ratio'):
-                primary_datasets.append(ds)
-            else:
-                # Move Non-Ratio metrics (like Counts) to Tooltip
-                tooltip_datasets.append(ds)
-        
-        # Only switch if we found primary datasets
-        if primary_datasets:
-            datasets = primary_datasets
 
     return ChartBlock(
         subtype="BAR" if req.metadata.requested_viz == "BAR_CHART" else "LINE",
@@ -311,8 +304,12 @@ def _format_pie_strategy(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
     
     # --- MODO DISTRIBUCIÓN (Estándar, 1 Métrica + Dimensiones) ---
     # Ej: "Headcount por División"
-    elif len(req.cube_query.dimensions) > 0:
-        x_dim = req.cube_query.dimensions[0]
+    elif len(req.cube_query.dimensions) > 0 or "comparison_group" in df.columns:
+        if req.cube_query.dimensions:
+            x_dim = req.cube_query.dimensions[0]
+        else:
+            x_dim = "comparison_group"
+            
         metric_key = req.cube_query.metrics[0] if req.cube_query.metrics else "count"
         
         raw_labels = df[x_dim].astype(str).tolist()

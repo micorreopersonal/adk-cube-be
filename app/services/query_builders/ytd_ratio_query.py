@@ -13,6 +13,7 @@ Estrategia:
 from typing import List, Dict, Any
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY
 from app.core.config.config import get_settings
+from app.services.query_builders.utils import build_where_clauses
 
 settings = get_settings()
 CUBE_SOURCE = f"`{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}`"
@@ -114,7 +115,7 @@ def build_ytd_ratio_query(
         final_select.append(metric_key)
     
     # Construir WHERE
-    where_clauses = _build_where_clauses(filters)
+    where_clauses = build_where_clauses(filters, CUBE_SOURCE)
     where_block = " AND ".join(where_clauses) if where_clauses else "1=1"
     
     # Construir GROUP BY
@@ -123,6 +124,13 @@ def build_ytd_ratio_query(
     # Ensamblar SQL
     cte_select_str = ",\n        ".join(cte_select)
     final_select_str = ",\n    ".join(final_select)
+    
+    # Construir ORDER BY si hay un límite pequeño (Top N)
+    order_by = ""
+    if limit and limit < 5000:
+        primary_metric = metrics[0] if metrics else None
+        if primary_metric:
+            order_by = f"\nORDER BY {primary_metric} DESC"
     
     sql = f"""
 WITH yearly_aggregates AS (
@@ -134,47 +142,10 @@ WITH yearly_aggregates AS (
 )
 SELECT 
     {final_select_str}
-FROM yearly_aggregates
+FROM yearly_aggregates{order_by}
 LIMIT {limit}
 """
     
     return sql.strip()
 
 
-def _build_where_clauses(filters: Dict[str, Any]) -> List[str]:
-    """Construye cláusulas WHERE a partir de filtros."""
-    where_clauses = ["segmento != 'PRACTICANTE'"]
-    
-    if not filters:
-        return where_clauses
-    
-    for dim_key, value in filters.items():
-        # Obtener definición de dimensión
-        dim_def = DIMENSIONS_REGISTRY.get(dim_key)
-        if not dim_def:
-            continue
-        
-        col_sql = dim_def.get("sql", dim_key) if isinstance(dim_def, dict) else dim_key
-        
-        # Determinar si es numérico
-        is_numeric = False
-        if isinstance(dim_def, dict):
-            if dim_def.get("sorting") == "numeric" or dim_def.get("type") in ["integer", "float", "number", "numeric"]:
-                is_numeric = True
-        
-        # Formatear valor
-        def format_val(v):
-            if isinstance(v, (int, float)):
-                return str(v)
-            if isinstance(v, str) and is_numeric and v.replace(".", "", 1).isdigit():
-                return v
-            return f"'{v}'"
-        
-        # Construir condición
-        if isinstance(value, list):
-            vals = ", ".join([format_val(v) for v in value])
-            where_clauses.append(f"{col_sql} IN ({vals})")
-        else:
-            where_clauses.append(f"{col_sql} = {format_val(value)}")
-    
-    return where_clauses

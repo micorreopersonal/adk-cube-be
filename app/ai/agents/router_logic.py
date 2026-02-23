@@ -112,6 +112,8 @@ class AgentRouter:
           - *Acción:* Llama `process_triage_step(period='2025', structure='TOTAL', format='executive_report')` → Responde: "PROCEED".
         - **Usuario:** "Dame el informe ejecutivo de diciembre 2025"
           - *Acción:* Llama `process_triage_step(period='202512', structure='TOTAL', format='executive_report')` → Responde: "PROCEED".
+        - **Usuario:** "Listado del último mes cerrado de 2025"
+          - *Acción:* Llama `process_triage_step(period='2025-MAX', structure='TOTAL', format='table')` → Responde: "PROCEED".
 
         ### ALERTA CRÍTICA DE SISTEMA:
         **ESTRICAMENTE PROHIBIDO GENERAR BLOQUES DE CÓDIGO (```python ...```).**

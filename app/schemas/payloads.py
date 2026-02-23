@@ -35,6 +35,7 @@ class Dataset(BaseModel):
     format: Optional[MetricFormat] = None  # Formato para esta métrica
     borderColor: Optional[str] = None
     backgroundColor: Optional[str] = None
+    related_datasets: Optional[List[Any]] = Field(default=None, description="Datasets auxiliares vinculados directamente a esta serie (tooltips contextuales)")
 
 class ChartPayload(BaseModel):
     labels: List[str] = Field(..., description="Eje X (Categorías)")

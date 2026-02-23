@@ -53,6 +53,30 @@ METRICS_REGISTRY = {
         "type": "count",
         "complexity": "simple"  # Agregación directa
     },
+    "ceses_acumulado": {
+        "sql": "ceses_acumulado",
+        "label": "Ceses Totales (YTD acumulados)",
+        "description": "Total de bajas acumuladas en el año.",
+        "format": {"unit_type": "count", "symbol": None, "decimals": 0},
+        "type": "calculated",
+        "requires_cte": "headcount_base"
+    },
+    "ceses_voluntarios_acumulado": {
+        "sql": "ceses_voluntarios_acumulado",
+        "label": "Personal Cesado Voluntario (YTD acumulado)",
+        "description": "Total de renuncias acumuladas en el año.",
+        "format": {"unit_type": "count", "symbol": None, "decimals": 0},
+        "type": "calculated",
+        "requires_cte": "headcount_base"
+    },
+    "ceses_involuntarios_acumulado": {
+        "sql": "ceses_involuntarios_acumulado",
+        "label": "Ceses Involuntarios (YTD acumulados)",
+        "description": "Cantidad absoluta de personas desvinculadas acumuladas en el año.",
+        "format": {"unit_type": "count", "symbol": None, "decimals": 0},
+        "type": "calculated",
+        "requires_cte": "headcount_base"
+    },
     "ceses_involuntarios": {
         "sql": "COUNT(DISTINCT CASE WHEN estado = 'Cesado' AND LOWER(motivo_cese) NOT LIKE '%renuncia%' THEN codigo_persona END)",
         "label": "Ceses Involuntarios",
@@ -154,7 +178,7 @@ METRICS_REGISTRY = {
         "format": {"unit_type": "percentage", "symbol": "%", "decimals": 2},
         "type": "calculated",
         "requires_cte": "headcount_base",
-        "informative_metrics": ["ceses_totales", "headcount_promedio_acumulado"]
+        "informative_metrics": ["ceses_acumulado", "headcount_promedio_acumulado"]
     },
     "tasa_rotacion_anual_voluntaria": {
         "sql": "tasa_rotacion_anual_voluntaria",
@@ -164,7 +188,7 @@ METRICS_REGISTRY = {
 
         "type": "calculated",
         "requires_cte": "headcount_base",
-        "informative_metrics": ["ceses_voluntarios", "headcount_promedio_acumulado"]
+        "informative_metrics": ["ceses_voluntarios_acumulado", "headcount_promedio_acumulado"]
     },
     "tasa_rotacion_anual_involuntaria": {
         "sql": "tasa_rotacion_anual_involuntaria",
@@ -173,7 +197,7 @@ METRICS_REGISTRY = {
         "format": {"unit_type": "percentage", "symbol": "%", "decimals": 2},
         "type": "calculated",
         "requires_cte": "headcount_base",
-        "informative_metrics": ["ceses_involuntarios", "headcount_promedio_acumulado"]
+        "informative_metrics": ["ceses_involuntarios_acumulado", "headcount_promedio_acumulado"]
     }
     # "headcount_promedio": {
     #     "sql": """
@@ -349,8 +373,9 @@ DIMENSIONS_REGISTRY = {
     "per_anual": {
         "sql": "per_anual",
         "category": "performance",
-        "label": "Performance Anual",
-        "description": "Evaluación de performance anual del colaborador"
+        "label": "Performance (PER %)",
+        "description": "Evaluación de performance anual (Penetration Rate).",
+        "format": {"unit_type": "percentage", "symbol": "%", "decimals": 1}
     },
     "ggs": {
         "sql": "ggs",
@@ -435,12 +460,11 @@ DIMENSIONS_REGISTRY = {
             END
         """,
         "category": "segmentation",
-        "label": "Grupo de Segmento",
-        "description": "Agrupación binaria: Fuerza de Ventas (solo EMPLEADO FFVV) vs Administrativo (todos los demás excepto PRACTICANTE)",
+        "label": "Grupo de Segmento (FFVV vs ADM)",
+        "description": "Agrupación binaria: Fuerza de Ventas (FFVV - solo EMPLEADO FFVV) vs Administrativo (ADM - todos los demás). NUNCA incluye PRACTICANTES.",
         "value_definitions": {
-            "Fuerza de Ventas": "EMPLEADO FFVV únicamente",
-            "Administrativo": "EMPLEADO, GERENTE, JEFE, SECRETARIA, SUB GERENTE, JUR GERENTE, GERENTE CORPORATIVO, etc.",
-            "Practicante": "Excluido automáticamente por filtro de seguridad"
+            "Fuerza de Ventas": "FFVV - Personal de ventas (EMPLEADO FFVV)",
+            "Administrativo": "ADM - Personal administrativo (Resto de segmentos)"
         }
     },
     
@@ -492,15 +516,6 @@ DIMENSIONS_REGISTRY = {
     # Estado (CRÍTICO para filtros de rotación vs activos)
     "estado": {"sql": "estado", "category": "segmentation", "label": "Estado"},
     
-    # Financial / Performance (PER = Penetration Rate)
-    # Dato pre-calculado en origen: % penetración vs banda mercado.
-    # Dato pre-calculado en origen: % penetración vs banda mercado.
-    "per_anual": {
-        "sql": "per_anual", 
-        "category": "financial", 
-        "label": "PER Anual (%)",
-        "type": "ratio"
-    },
     "percentil": {"sql": "percentil", "category": "financial", "label": "Percentil"},
     "salario": {"sql": "salario_mensual", "category": "segmentation", "label": "Salario Mensual"},
     

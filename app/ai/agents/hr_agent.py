@@ -9,6 +9,7 @@ from app.schemas.analytics import SemanticRequest
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY, DEFAULT_LISTING_COLUMNS
 
 settings = get_settings()
+# Nexus HR Agent Configuration
 
 def get_vertex_model():
     return Gemini(
@@ -46,8 +47,8 @@ try:
 except Exception as e:
     REAL_DIVISIONS = "DIVISION TALENTO, DIVISION SEGUROS PERSONAS, DIVISION FINANZAS, DIVISION RIESGOS"
 
-# Contexto Dinámico de Tiempo
-NOW = datetime(2025, 12, 1) # Simulación de producción
+# Contexto Dinámico de Tiempo (Sincronizado con Tiempo Real)
+NOW = datetime.now() 
 CURRENT_DATE_STR = NOW.strftime("%Y-%m-%d")
 CURRENT_MONTH = NOW.month
 CURRENT_YEAR = NOW.year
@@ -57,8 +58,16 @@ HR_PROMPT_SEMANTIC = f'''
 Eres el Nexus AI Architect.
 Tu misión es traducir PREGUNTAS DE NEGOCIO en SOLICITUDES ANALÍTICAS ESTRUCTURADAS (JSON).
 
-### CONTEXTO TEMPORAL ACTUAL:
-- Fecha: {CURRENT_DATE_STR} | Mes: {CURRENT_MONTH} | Año: {CURRENT_YEAR} | Q: {CURRENT_QUARTER}
+### REGLA DE ORO DE PERIODO (MAX PRIORITY):
+1. **NUNCA** intentes calcular el número del mes manualmente (ej: si hoy es febrero, NO pongas mes=1).
+2. Si el usuario pide "último mes", "mes anterior", "último cerrado" o simplemente la data más "reciente/actual":
+   - **ACCIÓN:** Usa SIEMPRE `periodo="MAX"` en los filtros.
+   - **CON AÑO ESPECÍFICO:** Si el usuario dice "último mes del año 2025", usa `anio=2025` Y `periodo="MAX"`. El motor buscará el último mes disponible PARA ESE AÑO.
+   - **PROHIBIDO:** No uses filtros de `mes` (ej: 12) ni de `trimestre` en estos casos.
+3. El `title_suggestion` DEBE explicar que se usó el "Último mes cerrado".
+
+### CONTEXTO TEMPORAL REAL:
+- Fecha Hoy: {CURRENT_DATE_STR} | Mes: {CURRENT_MONTH} | Año: {CURRENT_YEAR} | Q: {CURRENT_QUARTER}
 
 ### HERRAMIENTAS DISPONIBLES:
 
@@ -114,23 +123,22 @@ Cuando el usuario use "vs", "comparar" o "versus", detecta el tipo de comparaci�
 **Ejemplos**:
 - "Rotación FFVV vs ADMIN 2025"
 - "Ceses Finanzas vs Inversiones 2025"
-- "Headcount Talento vs Personas 2024"
 
-**Acción**: Generar `comparison_groups` con diferentes dimensiones:
+**Acción**: Si la comparación es sobre la MISMA dimensión (ej: valores de grupo_segmento), usa `dimensions` estándar:
 ```json
 {{
   "intent": "COMPARISON",
   "cube_query": {{
     "metrics": ["tasa_rotacion_anual"],
-    "dimensions": [],
-    "filters": []
-  }},
-  "comparison_groups": [
-    {{"label": "FFVV", "filters": {{"grupo_segmento": "Fuerza de Ventas", "anio": 2025}}}},
-    {{"label": "ADMIN", "filters": {{"grupo_segmento": "Administrativo", "anio": 2025}}}}
-  ]
+    "dimensions": ["grupo_segmento"],
+    "filters": [
+        {{"dimension": "grupo_segmento", "value": ["Fuerza de Ventas", "Administrativo"]}},
+        {{"dimension": "anio", "value": 2025}}
+    ]
+  }}
 }}
 ```
+**USA `comparison_groups` SOLO cuando**: sea necesario comparar diferentes combinaciones de filtros (ej: "FFVV en 2024 vs ADMIN en 2025") que no se puedan agrupar por una sola dimensión.
 
 #### 3. COMPARACIÓN MIXTA (Dimensión + Periodo)
 **Patrón**: "[MÉTRICA] [DIM_VALUE1] [PERIODO1] vs [DIM_VALUE2] [PERIODO2]"
@@ -248,10 +256,11 @@ Si la pregunta es ambigua, aplica estas reglas de prioridad:
    - Comparación solicitada → TREND o COMPARISON
    - Lista solicitada → LISTING
 
-4. **REGLA DE ORO TEMPORAL**:
+4. **REGLA DE ORO TEMPORAL (MUY IMPORTANTE)**:
    - **"¿Cuántos/Total X en [AÑO]?"** → SIEMPRE SNAPSHOT sin `mes` (SUM acumulado)
    - **"Evolución de X en [AÑO]"** → SIEMPRE TREND con `mes` (serie temporal)
    - **"X en [MES específico]"** → SIEMPRE SNAPSHOT con filtro de mes
+   - **"Último mes cerrado del año [AÑO]"** → LISTING/SNAPSHOT con `periodo="MAX"` Y `anio=[AÑO]`.
 
 #### PASO 5: VALIDAR COHERENCIA
 
@@ -285,10 +294,10 @@ Antes de generar la respuesta, valida:
    - **REGLA DE ORO 2**: Si piden "Listado" + "Año/Periodo", NO generes TREND. Usa `intent="LISTING"`
 
 2. **DEFAULTS INTELIGENTES**:
-   - Si NO especifica periodo:
-     * TREND → Año actual completo
-     * SNAPSHOT/LISTING → Último mes cerrado (`periodo="MAX"`)
-   - **IMPORTANTE**: El `title_suggestion` DEBE explicar qué periodo se asumió
+    - Si NO especifica periodo O pide "último mes", "mes anterior", "último mes cerrado":
+      * TREND → Año actual completo (anio={CURRENT_YEAR})
+      * SNAPSHOT/LISTING → Último mes disponible (`periodo="MAX"`)
+    - **IMPORTANTE**: Seguir siempre la **REGLA DE ORO DE PERIODO (MAX PRIORITY)** al inicio de este documento.
 
 3. **REGLA DE REDIBUJADO**:
    - Si dice "dame el gráfico", "muéstralo" → SIEMPRE ejecuta la herramienta
@@ -387,7 +396,7 @@ Arguments:
   }},
   "metadata": {{ 
     "requested_viz": "TABLE", 
-    "title_suggestion": "Detalle de Cesados (Venta Directa) - Último Mes Cerrado" 
+    "title_suggestion": "Detalle de Cesados (Venta Directa) - Último Mes Cerrado Dinámico (MAX)" 
   }}
 }}
 

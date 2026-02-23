@@ -12,6 +12,7 @@ Estrategia:
 from typing import List, Dict, Any
 from app.core.analytics.registry import METRICS_REGISTRY, DIMENSIONS_REGISTRY
 from app.core.config.config import get_settings
+from app.services.query_builders.utils import build_where_clauses
 
 settings = get_settings()
 CUBE_SOURCE = f"`{settings.PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_TURNOVER}`"
@@ -44,8 +45,11 @@ def build_ytd_optimized_query(
     has_mes = "mes" in dimensions or "periodo" in dimensions
     
     # Lista de métricas complejas que REQUIEREN cálculo mensual y luego promedio (no se pueden hacer directo)
-    complex_avg_metrics = ["headcount_promedio_acumulado", "tasa_rotacion_anual"]
-    requires_monthly_granularity = any(m in metrics for m in complex_avg_metrics)
+    # También incluimos cualquier métrica que explícitamente declare 'requires_cte' en el registry
+    requires_monthly_granularity = any(
+        m in metrics or METRICS_REGISTRY.get(m, {}).get("requires_cte") == "headcount_base"
+        for m in metrics
+    )
     
     if not has_mes and not requires_monthly_granularity:
         # Sin dimensión mes y métricas simples → Query simple super rápida
@@ -77,7 +81,14 @@ def build_ytd_optimized_query(
             return series_sql + (f" LIMIT {limit}" if limit else "")
         else:
             # Si NO pidió mes pero era compleja, tomar el último valor acumulado
-            # Colocamos la CTE al principio (BigQuery no permite WITH dentro de subquery)
+            # CRITICAL: Si hay un LIMIT (ej: Top 5), debemos ordenar por la métrica principal DESC
+            # para que el límite tome los valores más altos, no los primeros de la lista.
+            order_by_metric = ""
+            if limit and limit < 5000: # Heurística: si el límite es pequeño, es un Top N
+                primary_metric = metrics[0] if metrics else None
+                if primary_metric:
+                    order_by_metric = f"ORDER BY {primary_metric} DESC"
+
             wrapper_sql = f"""
 {cte_part}
 
@@ -89,6 +100,7 @@ FROM (
     )
 )
 WHERE rn = 1
+{order_by_metric}
 LIMIT {limit}
 """
             return wrapper_sql.strip()
@@ -181,7 +193,7 @@ def _build_ytd_snapshot_query(
             select_items.append(f"{metric_sql} AS {metric_key}")
     
     # WHERE
-    where_clauses = _build_where_clauses(filters)
+    where_clauses = build_where_clauses(filters, CUBE_SOURCE)
     where_block = " AND ".join(where_clauses) if where_clauses else "1=1"
     
     # GROUP BY (solo si hay dimensiones no-temporales)
@@ -194,7 +206,16 @@ def _build_ytd_snapshot_query(
             col_sql = dim_def.get("sql", dim_key) if isinstance(dim_def, dict) else dim_key
             dim_cols.append(col_sql)
         group_by = f"GROUP BY {', '.join(dim_cols)}"
-        order_by = f"ORDER BY {dim_cols[0]} ASC"
+        
+        # RANKING LOGIC: Si hay un límite pequeño, ordenar por la métrica principal DESC
+        if limit and limit < 5000:
+            primary_metric = metrics[0] if metrics else None
+            if primary_metric:
+                order_by = f"ORDER BY {primary_metric} DESC"
+            else:
+                order_by = f"ORDER BY {dim_cols[0]} ASC"
+        else:
+            order_by = f"ORDER BY {dim_cols[0]} ASC"
     
     # Ensamblar SQL
     select_str = ",\n    ".join(select_items)
@@ -284,37 +305,3 @@ ORDER BY anio, mes ASC
     return sql.strip()
 
 
-def _build_where_clauses(filters: Dict[str, Any]) -> List[str]:
-    """Construye cláusulas WHERE a partir de filtros."""
-    where_clauses = ["segmento != 'PRACTICANTE'"]
-    
-    if not filters:
-        return where_clauses
-    
-    for dim_key, value in filters.items():
-        dim_def = DIMENSIONS_REGISTRY.get(dim_key)
-        if not dim_def:
-            continue
-        
-        col_sql = dim_def.get("sql", dim_key) if isinstance(dim_def, dict) else dim_key
-        
-        # Determinar si es numérico
-        is_numeric = False
-        if isinstance(dim_def, dict):
-            if dim_def.get("sorting") == "numeric" or dim_def.get("type") in ["integer", "float", "number", "numeric"]:
-                is_numeric = True
-        
-        def format_val(v):
-            if isinstance(v, (int, float)):
-                return str(v)
-            if isinstance(v, str) and is_numeric and v.replace(".", "", 1).isdigit():
-                return v
-            return f"'{v}'"
-        
-        if isinstance(value, list):
-            vals = ", ".join([format_val(v) for v in value])
-            where_clauses.append(f"{col_sql} IN ({vals})")
-        else:
-            where_clauses.append(f"{col_sql} = {format_val(value)}")
-    
-    return where_clauses
