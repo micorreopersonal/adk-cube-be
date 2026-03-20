@@ -75,9 +75,10 @@ def _ensure_dataframe_completeness(df: pd.DataFrame, req: SemanticRequest) -> pd
                     
                     row = {x_dim: val}
                     
-                    # Rellenar métricas con 0
+                    # Rellenar métricas con NaN (= "no data", not "zero")
+                    # NaN → None in JSON → Chart.js breaks line (no point drawn)
                     for m in req.cube_query.metrics:
-                        row[m] = 0
+                        row[m] = float('nan')
                         
                     # Otras dimensiones: "N/A" o Contextual
                     new_rows.append(row)
@@ -121,15 +122,22 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
     """Transforma un DF en estructura Chart.js."""
     
     # 1. Definir Ejes
-    if req.cube_query.dimensions:
-        x_dim = req.cube_query.dimensions[0]
-    elif "comparison_group" in df.columns:
-        x_dim = "comparison_group"
+    dimensions_present = req.cube_query.dimensions.copy() if req.cube_query.dimensions else []
+    
+    # Inyectar 'comparison_group' como dimension si existe en el df
+    if "comparison_group" in df.columns and "comparison_group" not in dimensions_present:
+        dimensions_present.append("comparison_group")
+
+    if dimensions_present:
+        x_dim = dimensions_present[0]
     else:
         x_dim = "index"
+        if "index" not in df.columns:
+            df = df.copy()
+            df["index"] = ["Total"] * len(df) if not df.empty else []
 
     x_meta = DIMENSIONS_REGISTRY.get(x_dim, {})
-    group_dim = req.cube_query.dimensions[1] if len(req.cube_query.dimensions) > 1 else None
+    group_dim = dimensions_present[1] if len(dimensions_present) > 1 else None
     
     labels = []
     datasets = []
@@ -192,7 +200,7 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
             data_points = []
             for lbl in raw_labels:
                 match = subset[subset[x_dim].astype(str) == lbl]
-                data_points.append(match.iloc[0][metric_key] if not match.empty else 0)
+                data_points.append(match.iloc[0][metric_key] if not match.empty else None)
             
             ds_label = str(g_val)
             if group_meta.get("label_mapping"):
@@ -206,8 +214,8 @@ def _format_chart_block(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
                 if not match.empty:
                     balanced_subset.append(match.iloc[0])
                 else:
-                    # Rellenar con ceros para métricas informativas si no hay datos
-                    row = {col: 0 for col in subset.columns}
+                    # Fill with NaN for missing data points (not zero)
+                    row = {col: float('nan') for col in subset.columns}
                     row[x_dim] = lbl
                     balanced_subset.append(pd.Series(row))
             
@@ -312,11 +320,14 @@ def _format_pie_strategy(df: pd.DataFrame, req: SemanticRequest) -> ChartBlock:
             
         metric_key = req.cube_query.metrics[0] if req.cube_query.metrics else "count"
         
-        raw_labels = df[x_dim].astype(str).tolist()
+        # Agrupar valores para evitar duplicados si el DF tiene multiplicidad por comparison_groups
+        df_grouped = df.groupby(x_dim, as_index=False)[metric_key].sum()
+        raw_labels = df_grouped[x_dim].astype(str).tolist()
+        
         # Higiene de Labels
         labels = ["Sin Especificar" if lbl == "None" or lbl == "nan" else lbl for lbl in raw_labels]
         
-        data_points = df[metric_key].tolist()
+        data_points = df_grouped[metric_key].tolist()
         
         # Mapeo de dimensiones (ej: meses)
         x_meta = DIMENSIONS_REGISTRY.get(x_dim, {})

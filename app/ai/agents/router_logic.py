@@ -289,7 +289,7 @@ class AgentRouter:
             
             try:
                 triage_response = self.client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=triage_contents,
                     config=types.GenerateContentConfig(
                         system_instruction=triage_instr,
@@ -308,7 +308,7 @@ class AgentRouter:
                     self.logger.warning(f"⚠️ [ROUTER] Triage timed out with AFC. Retrying WITHOUT tools (Pure Text Fallback). Error: {e}")
                     # FALLBACK: Intentar sin herramientas para desbloquear
                     triage_response = self.client.models.generate_content(
-                        model="gemini-2.0-flash",
+                        model="gemini-2.5-flash",
                         contents=triage_contents,
                         config=types.GenerateContentConfig(
                             system_instruction=triage_instr + "\n\n[NOTA: EL VALIDADOR FALLÓ. RESPONDE SOLO CON TEXTO Y 'PROCEED' SI ES POSIBLE.]",

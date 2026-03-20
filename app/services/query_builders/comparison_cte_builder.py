@@ -142,14 +142,34 @@ def build_ytd_comparison_with_cte(
     # 6. Ensamblar SQL final
     select_clause = ',\n    '.join(select_items)
     
+    # 7. Build WHERE to exclude rows that don't match any comparison group
+    # (e.g., December of prior year fetched for LAG but not part of the comparison)
+    group_conditions = []
+    for group in comparison_groups:
+        parts = []
+        for dim, value in group["filters"].items():
+            col_sql = dim
+            if isinstance(value, list):
+                formatted = [f"'{v}'" if isinstance(v, str) else str(v) for v in value]
+                parts.append(f"{col_sql} IN ({', '.join(formatted)})")
+            else:
+                if isinstance(value, str):
+                    parts.append(f"{col_sql} = '{value}'")
+                else:
+                    parts.append(f"{col_sql} = {value}")
+        group_conditions.append(f"({' AND '.join(parts)})")
+
+    where_clause = " OR ".join(group_conditions)
+
     sql = f"""
 WITH {cte_sql}
 
-SELECT 
+SELECT
     {select_clause}
 FROM headcount_base
+WHERE {where_clause}
 ORDER BY {', '.join(order_by_cols)}
 LIMIT {limit}
 """
-    
+
     return sql.strip()

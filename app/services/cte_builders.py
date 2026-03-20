@@ -83,17 +83,22 @@ def build_headcount_base_cte(
     # 2. Construir filtros WHERE
     where_clauses = ["segmento != 'PRACTICANTE'"]
     
-    # Detectar año para ampliar rango (necesitamos Diciembre del año anterior para LAG)
-    year = None
+    # Detectar año(s) para ampliar rango (necesitamos Diciembre del año anterior para LAG)
+    years = []
     if filters:
         for dim_key, value in filters.items():
             if dim_key in ["anio", "year"]:
-                year = value if not isinstance(value, list) else value[0]
+                if isinstance(value, list):
+                    years = [int(v) for v in value]
+                else:
+                    years = [int(value)]
                 break
-    
-    # Rango ampliado de fechas
-    if year:
-        where_clauses.append(f"periodo BETWEEN DATE('{year-1}-12-01') AND DATE('{year}-12-31')")
+
+    # Rango ampliado de fechas — use min/max to cover all requested years
+    if years:
+        min_year = min(years)
+        max_year = max(years)
+        where_clauses.append(f"periodo BETWEEN DATE('{min_year-1}-12-01') AND DATE('{max_year}-12-31')")
     
     # Agregar filtros adicionales (excepto temporales que se aplicarán al final)
     if filters:

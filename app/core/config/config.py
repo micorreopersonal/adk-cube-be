@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     PROJECT_ID: str
     REGION: str = "us-central1"
     ENV: str = "development"  # "development" o "production"
-    MODEL_NAME: str = "gemini-2.0-flash-exp"
+    MODEL_NAME: str = "gemini-2.5-flash"
     
     # BigQuery
     BQ_DATASET: str

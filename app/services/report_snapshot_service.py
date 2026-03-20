@@ -2,7 +2,7 @@ import os
 import uuid
 import logging
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 from google.cloud import firestore
 
 logger = logging.getLogger(__name__)
@@ -31,8 +31,8 @@ class ReportSnapshotService:
         })
         return report_id
 
-    def update_snapshot(self, report_id: str, blocks: List[Dict], status: str = "DATA_GATHERED"):
-        """Updates blocks and status of a report."""
+    def update_snapshot(self, report_id: str, blocks: Union[List[Dict], Dict[str, Any]], status: str = "DATA_GATHERED"):
+        """Updates blocks and status of a report. Accepts list or dict of block results."""
         doc_ref = self.collection.document(report_id)
         doc_ref.update({
             "blocks": blocks,
